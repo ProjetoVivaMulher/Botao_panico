@@ -74,3 +74,4 @@ Para detalhes de implementacao, backlog e operacao, consulte o plano:
 - Renan
 - Matheus
 - Gabriel Suede
+- Everaldo
