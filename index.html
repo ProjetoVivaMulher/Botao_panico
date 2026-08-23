@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Viva Mulher - Botão de Pânico Saquarema</title>
+  <meta name="description" content="Aplicativo de Botão de Pânico do Projeto Viva Mulher - Prefeitura de Saquarema. Baixe e instale na sua tela inicial.">
+  <meta name="theme-color" content="#0f172a">
+  <link rel="manifest" href="manifest.json?v=103">
+  <link rel="icon" href="assets/icon-192.png?v=103">
+  <link rel="stylesheet" href="css/styles.css?v=103">
+</head>
+<body>
+
+  <div class="app-container">
+    
+    <!-- HEADER COM O LOGO OFICIAL -->
+    <header class="app-header">
+      <div class="brand">
+        <img src="assets/logo.png?v=103" alt="Viva Mulher Saquarema" class="brand-logo-img">
+        <div>
+          <h1 class="brand-title">Viva Mulher</h1>
+          <span class="brand-subtitle">Prefeitura de Saquarema</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="btnHeaderInstall" class="btn-install-header" title="Instalar Aplicativo no Celular">
+          <span>📲</span> Instalar
+        </button>
+        <button id="btnDiscreetMode" class="btn-discreet" title="Modo Disfarçado de Calculadora">
+          <span>🕶️</span> Disfarçar
+        </button>
+      </div>
+    </header>
+
+    <!-- CONTEÚDO PRINCIPAL -->
+    <main class="app-content">
+
+      <!-- BANNER DE MARCA E INSTALAÇÃO DO APLICATIVO -->
+      <section class="brand-hero-card">
+        <img src="assets/logo.png?v=103" alt="Logo Viva Mulher Saquarema" class="hero-logo-large">
+        <div class="hero-brand-info">
+          <h2>Botão de Pânico de Emergência</h2>
+          <p>Disparo imediato de socorro com geolocalização e áudio para a Central de Atendimento.</p>
+          <button id="btnInstallPwa" class="btn-install-main">
+            <span>📲</span> Baixar e Instalar no Celular
+          </button>
+        </div>
+      </section>
+
+      <!-- BARRA DE STATUS GPS -->
+      <section class="status-bar">
+        <div class="status-info">
+          <div id="locationStatusDot" class="status-dot"></div>
+          <div>
+            <div id="locationStatusText" class="status-text">Verificando GPS...</div>
+            <div id="locationStatusSub" class="status-sub">Aguardando coordenadas de emergência</div>
+          </div>
+        </div>
+        <button id="btnRefreshLoc" class="btn-refresh-loc">🔄 Atualizar</button>
+      </section>
+
+      <!-- SEÇÃO HERO - BOTÃO DE PÂNICO -->
+      <section class="panic-hero-section">
+        <div class="panic-button-wrapper">
+          <div class="panic-pulse-ring"></div>
+          <div class="panic-pulse-ring"></div>
+          <button id="btnPanic" class="btn-panic" aria-label="Acionar Botão de Pânico">
+            <span class="panic-icon">🚨</span>
+            <span class="panic-label">SOCORRO</span>
+            <span class="panic-sublabel">Pressione para enviar</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- LIGAÇÕES RÁPIDAS DE EMERGÊNCIA PÚBLICA -->
+      <section>
+        <div style="font-size:0.8rem; font-weight:700; color:var(--text-muted); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">
+          Canais Diretos de Emergência
+        </div>
+        <div class="quick-dial-grid">
+          <a href="tel:190" class="dial-card police" id="dial-190">
+            <span class="dial-badge">190</span>
+            <span class="dial-name">Polícia Militar</span>
+          </a>
+          <a href="tel:180" class="dial-card woman" id="dial-180">
+            <span class="dial-badge">180</span>
+            <span class="dial-name">Central da Mulher</span>
+          </a>
+          <a href="tel:192" class="dial-card samu" id="dial-192">
+            <span class="dial-badge">192</span>
+            <span class="dial-name">SAMU 192</span>
+          </a>
+        </div>
+      </section>
+
+      <!-- GERENCIADOR DE CONTATOS DE CONFIANÇA -->
+      <section class="card-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <i>📱</i> Contatos de Confiança
+          </h2>
+        </div>
+
+        <div id="contactsList" style="display:flex; flex-direction:column; gap:8px;">
+          <!-- Renderizado via JS -->
+        </div>
+
+        <form id="addContactForm" class="add-contact-form">
+          <input type="text" id="contactNameInput" class="input-field" placeholder="Nome (ex.: Mãe, Amiga, Vizinha)" required>
+          <input type="tel" id="contactPhoneInput" class="input-field" placeholder="WhatsApp (ex.: 552139553874)" required>
+          <button type="submit" class="btn-primary">+ Cadastrar Contato de Emergência</button>
+        </form>
+      </section>
+
+      <!-- HISTÓRICO DE ALERTAS DISPARADOS -->
+      <section class="card-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <i>📜</i> Registros & Áudios de Emergência
+          </h2>
+        </div>
+
+        <button id="btnManualAudioRecord" class="btn-primary" style="background:linear-gradient(135deg, #e83e8c 0%, #8b5cf6 100%); margin-bottom:8px;">
+          <span id="manualAudioIcon">🎙️</span> <span id="manualAudioText">Gravar Áudio de Evidência (15s)</span>
+        </button>
+
+        <div id="logsList" style="display:flex; flex-direction:column; gap:8px;">
+          <!-- Renderizado via JS -->
+        </div>
+      </section>
+
+    </main>
+
+  </div>
+
+  <!-- MODAL DE INSTRUÇÕES DE INSTALAÇÃO NO CELULAR -->
+  <div id="pwaInstallModal" class="countdown-overlay">
+    <div style="background:var(--bg-card-solid); border:1px solid var(--border-card); border-radius:18px; padding:24px; max-width:380px; width:100%; text-align:left;">
+      <h3 style="font-size:1.2rem; font-weight:800; color:white; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
+        <span>📲</span> Instalar Viva Mulher
+      </h3>
+      <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:14px; line-height:1.5;">
+        Para ter o Botão de Pânico sempre disponível na tela inicial do seu celular:
+      </p>
+      
+      <div style="display:flex; flex-direction:column; gap:10px; font-size:0.85rem; color:white; margin-bottom:20px;">
+        <div style="background:rgba(255,255,255,0.05); padding:10px; border-radius:8px;">
+          <strong>🍏 No iPhone (Safari):</strong><br>
+          1. Toque no botão <strong>Compartilhar</strong> (ícone de quadrado com seta para cima).<br>
+          2. Selecione <strong>"Adicionar à Tela de Início"</strong>.
+        </div>
+        <div style="background:rgba(255,255,255,0.05); padding:10px; border-radius:8px;">
+          <strong>🤖 No Android (Chrome):</strong><br>
+          1. Toque nos <strong>três pontinhos</strong> (⋮) no canto superior direito.<br>
+          2. Selecione <strong>"Instalar aplicativo"</strong> ou <strong>"Adicionar à Tela inicial"</strong>.
+        </div>
+      </div>
+
+      <button id="btnCloseInstallModal" class="btn-primary" style="width:100%;">Entendi</button>
+    </div>
+  </div>
+
+  <!-- MODAL DE CONTAGEM REGRESSIVA DE EMERGÊNCIA -->
+  <div id="countdownOverlay" class="countdown-overlay">
+    <div id="countdownNumber" class="countdown-circle">3</div>
+    <h2 class="countdown-title">ALERTANDO SOCORRO!</h2>
+    <p class="countdown-desc">Sua localização e dados serão enviados em instantes para os contatos e autoridades.</p>
+    <button id="btnCancelPanic" class="btn-cancel-panic">✖ CANCELAR DISPARO</button>
+  </div>
+
+  <!-- TELA CAMUFLADA (MODO CALCULADORA DE PROTEÇÃO) -->
+  <div id="camouflageScreen" class="camouflage-screen">
+    <div class="calc-display">
+      <div id="calcPrev" class="calc-prev"></div>
+      <div id="calcCurrent" class="calc-current">0</div>
+    </div>
+    <div class="calc-grid">
+      <button class="calc-btn fn" data-val="C">C</button>
+      <button class="calc-btn fn" data-val="±">±</button>
+      <button class="calc-btn fn" data-val="%">%</button>
+      <button class="calc-btn op" data-val="÷">÷</button>
+
+      <button class="calc-btn num" data-val="7">7</button>
+      <button class="calc-btn num" data-val="8">8</button>
+      <button class="calc-btn num" data-val="9">9</button>
+      <button class="calc-btn op" data-val="×">×</button>
+
+      <button class="calc-btn num" data-val="4">4</button>
+      <button class="calc-btn num" data-val="5">5</button>
+      <button class="calc-btn num" data-val="6">6</button>
+      <button class="calc-btn op" data-val="-">-</button>
+
+      <button class="calc-btn num" data-val="1">1</button>
+      <button class="calc-btn num" data-val="2">2</button>
+      <button class="calc-btn num" data-val="3">3</button>
+      <button class="calc-btn op" data-val="+">+</button>
+
+      <button class="calc-btn num zero" data-val="0">0</button>
+      <button class="calc-btn num" data-val=".">,</button>
+      <button class="calc-btn op" data-val="=">=</button>
+    </div>
+    <div class="unmask-hint">Digite 7777 para retornar ao modo Viva Mulher</div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toastNotification" class="toast-notification">
+    <span id="toastText">Notificação</span>
+  </div>
+
+  <!-- SCRIPTS -->
+  <script src="js/geolocation.js?v=103"></script>
+  <script src="js/emergency-message.js?v=103"></script>
+  <script src="js/contacts.js?v=103"></script>
+  <script src="js/camouflage.js?v=103"></script>
+  <script src="js/audio.js?v=103"></script>
+  <script src="js/pwa-install.js?v=103"></script>
+  <script src="js/app.js?v=103"></script>
+</body>
+</html>
