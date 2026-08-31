@@ -32,7 +32,6 @@ app.use(cors({
       callback(new Error('Origem não permitida pelo CORS de segurança do Viva Mulher.'));
     }
   },
-  // PATCH adicionado: os endpoints de status operacional (B3) precisam dele.
   methods: ['GET', 'POST', 'PATCH', 'DELETE'],
   credentials: true
 }));
@@ -49,12 +48,9 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
 }));
 
 // Rotas da API
-// alerts, contacts e audio já existiam no projeto — preservados sem alteração de contrato.
 const alertsRouter = require('./routes/alerts');
 const contactsRouter = require('./routes/contacts');
 const audioRouter = require('./routes/audio');
-
-// metrics e notifications são novos (tarefa B4 - Everaldo).
 const metricsRouter = require('./routes/metrics');
 const notificationsRouter = require('./routes/notifications');
 
