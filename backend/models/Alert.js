@@ -1,18 +1,12 @@
 /**
  * Viva Mulher - Botão de Pânico
  * Modelo do "chamado" de emergência.
- *
- * Mantém os mesmos nomes de campo que já existiam no protótipo (id, latitude,
- * longitude, accuracy, mapsUrl, targetPhone, created_at) em vez de inventar
- * nomes novos — isso preserva compatibilidade com o que o frontend já envia
- * e evita quebrar código que já funciona.
- *
- * Dados pessoais da vítima (nome, telefone de contato) não são duplicados
- * aqui: o "targetPhone" é apenas o número de destino do disparo, não um
- * cadastro de identidade.
  */
 
-const STATUSES = ['disparado', 'em_atendimento', 'encerrado', 'cancelado'];
+const STATUSES = [
+  'active', 'assigned', 'en_route', 'arrived', 'resolved', 'cancelled',
+  'disparado', 'em_atendimento', 'encerrado', 'cancelado'
+];
 
 function generateId() {
   const now = new Date();
@@ -22,24 +16,36 @@ function generateId() {
 }
 
 /**
- * Cria um novo registro de chamado a partir dos dados recebidos do frontend.
- * Campos não confiáveis (status, timestamps) nunca vêm do cliente.
+ * Cria um novo registro de chamado a partir dos dados recebidos do frontend ou API.
  */
 function createAlert(input = {}) {
   const now = new Date().toISOString();
+  const status = input.status || 'active';
+
   return {
-    id: input.eventId || generateId(),
-    latitude: input.latitude ?? null,
-    longitude: input.longitude ?? null,
-    accuracy: input.accuracy ?? null,
-    mapsUrl: input.mapsUrl ?? null,
+    id: input.eventId || input.id || generateId(),
+    user_id: input.user_id || 'anonymous',
+    latitude: input.location?.lat ?? input.latitude ?? null,
+    longitude: input.location?.lng ?? input.longitude ?? null,
+    accuracy: input.location?.accuracy ?? input.accuracy ?? null,
+    mapsUrl: input.location?.mapsUrl ?? input.mapsUrl ?? null,
+    location: input.location || {
+      lat: input.latitude ?? null,
+      lng: input.longitude ?? null,
+      mapsUrl: input.mapsUrl ?? null,
+      accuracy: input.accuracy ?? null
+    },
     targetPhone: input.targetPhone || process.env.DEFAULT_SOCORRO_PHONE || null,
-    mensagem: input.mensagem ?? null,
-    status: 'disparado',
+    message: input.message ?? input.mensagem ?? '',
+    battery_level: input.battery_level !== undefined ? input.battery_level : null,
+    status: status,
+    timings: input.timings || {
+      triggered_at: now
+    },
     created_at: now,
     updated_at: now,
-    status_history: [{ status: 'disparado', at: now }]
+    status_history: [{ status: status, at: now }]
   };
 }
 
-module.exports = { createAlert, STATUSES };
+module.exports = { createAlert, STATUSES, generateId };

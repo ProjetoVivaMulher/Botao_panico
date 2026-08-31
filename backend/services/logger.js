@@ -1,14 +1,6 @@
 /**
  * Viva Mulher - Botão de Pânico
  * Logs estruturados de tentativas de envio e mudanças de status.
- *
- * Grava em backend/data/logs.jsonl (uma linha JSON por evento — formato
- * "JSON Lines", fácil de ler depois com qualquer ferramenta) e também imprime
- * no console. Não usa banco de dados — mesma lógica de "zero configuração"
- * usada por Matheus em jsonStore.js.
- *
- * NUNCA logar: telefone completo, credenciais, conteúdo de áudio, ou
- * localização com precisão maior do que já está no próprio chamado.
  */
 
 const fs = require('fs');
@@ -33,6 +25,18 @@ function appendLog(entry) {
   const line = JSON.stringify({ ...entry, at: new Date().toISOString() });
   fs.appendFileSync(logFile, line + '\n', 'utf8');
   console.log('[log]', line);
+}
+
+function info(message, meta = {}) {
+  appendLog({ level: 'info', message, ...meta });
+}
+
+function warn(message, meta = {}) {
+  appendLog({ level: 'warn', message, ...meta });
+}
+
+function error(message, meta = {}) {
+  appendLog({ level: 'error', message, ...meta });
 }
 
 function logAlertCreated(alert) {
@@ -66,4 +70,11 @@ function readAllLogs() {
   }).filter(Boolean);
 }
 
-module.exports = { logAlertCreated, logStatusChange, readAllLogs };
+module.exports = {
+  info,
+  warn,
+  error,
+  logAlertCreated,
+  logStatusChange,
+  readAllLogs
+};

@@ -1,10 +1,6 @@
 /**
  * Viva Mulher - Botão de Pânico
  * Repositório de chamados de emergência.
- *
- * Esta é a única porta de entrada para ler/escrever chamados. Gabriel (B3) e
- * Everaldo (B4) usam este arquivo — nenhum dos dois deve manter uma lista em
- * memória paralela.
  */
 
 const { createJsonStore } = require('../db/jsonStore');
@@ -20,8 +16,30 @@ function insert(input) {
   return alert;
 }
 
+// Alias compatível com o controller alerts.js
+function create(input) {
+  return insert(input);
+}
+
 function list() {
   return store.readAll();
+}
+
+// Suporte a filtros de consulta (ex.: status, user_id, limit, offset)
+function findAll(filters = {}, pagination = {}) {
+  let alerts = store.readAll();
+
+  if (filters.status) {
+    alerts = alerts.filter(a => a.status === filters.status);
+  }
+  if (filters.user_id) {
+    alerts = alerts.filter(a => a.user_id === filters.user_id);
+  }
+
+  const offset = parseInt(pagination.offset, 10) || 0;
+  const limit = parseInt(pagination.limit, 10) || alerts.length;
+
+  return alerts.slice(offset, offset + limit);
 }
 
 function findById(id) {
@@ -29,10 +47,7 @@ function findById(id) {
 }
 
 /**
- * Atualiza um chamado existente. `changes` deve conter pelo menos os campos
- * que mudaram; `status`, se presente, também é anexado em `status_history`.
- * Não valida transição de status aqui — isso é responsabilidade de
- * `backend/services/statusTransitions.js` (Gabriel), chamado antes deste update.
+ * Atualiza um chamado existente.
  */
 function update(id, changes) {
   const alerts = store.readAll();
@@ -40,10 +55,11 @@ function update(id, changes) {
   if (index === -1) return null;
 
   const now = new Date().toISOString();
-  const updated = { ...alerts[index], ...changes, updated_at: now };
+  const current = alerts[index];
+  const updated = { ...current, ...changes, updated_at: now };
 
-  if (changes.status && changes.status !== alerts[index].status) {
-    updated.status_history = [...(alerts[index].status_history || []), { status: changes.status, at: now }];
+  if (changes.status && changes.status !== current.status) {
+    updated.status_history = [...(current.status_history || []), { status: changes.status, at: now }];
   }
 
   alerts[index] = updated;
@@ -51,4 +67,11 @@ function update(id, changes) {
   return updated;
 }
 
-module.exports = { insert, list, findById, update };
+module.exports = {
+  insert,
+  create,
+  list,
+  findAll,
+  findById,
+  update
+};

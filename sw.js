@@ -3,7 +3,7 @@
  * Service Worker para suporte a PWA e funcionamento offline
  */
 
-const CACHE_NAME = 'viva-mulher-v103';
+const CACHE_NAME = 'viva-mulher-v104';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
