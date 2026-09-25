@@ -36,6 +36,14 @@
     <!-- CONTEÚDO PRINCIPAL -->
     <main class="app-content">
 
+      <!-- FAIXA DE ALERTA: SIMULAÇÃO ACADÊMICA & 190 -->
+      <section class="disclaimer-banner" role="alert">
+        <div class="disclaimer-icon">⚠️</div>
+        <div class="disclaimer-text">
+          <strong>Projeto de Extensão Acadêmica:</strong> Este app é um recurso de apoio comunitário e <u>não substitui os canais oficiais</u>. Em risco iminente, ligue direto para a <strong>Polícia Militar (190)</strong> ou <strong>Central da Mulher (180)</strong>.
+        </div>
+      </section>
+
       <!-- BANNER DE MARCA E INSTALAÇÃO DO APLICATIVO -->
       <section class="brand-hero-card">
         <img src="assets/logo.png?v=102" alt="Logo Viva Mulher Saquarema" class="hero-logo-large">
@@ -128,10 +136,45 @@
         <div id="logsList" style="display:flex; flex-direction:column; gap:8px;">
           <!-- Renderizado via JS -->
         </div>
+
+        <button id="btnClearLocalData" class="btn-sm-action" style="width:100%; height:auto; padding:8px 12px; margin-top:8px; font-size:0.75rem; color:var(--text-muted); justify-content:center; border:1px dashed rgba(255,255,255,0.15);">
+          🗑️ Apagar histórico e dados salvos no celular
+        </button>
       </section>
 
     </main>
 
+  </div>
+
+  <!-- MODAL DE CONSENTIMENTO LGPD (SEGURANÇA & PRIVACIDADE) -->
+  <div id="lgpdConsentModal" class="countdown-overlay">
+    <div style="background:var(--bg-card-solid); border:1px solid var(--border-card); border-radius:18px; padding:24px; max-width:390px; width:100%; text-align:left;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+        <span style="font-size:1.4rem;">⚖️</span>
+        <h3 style="font-size:1.15rem; font-weight:800; color:white;">Termo de Uso & LGPD</h3>
+      </div>
+      
+      <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:12px; line-height:1.5;">
+        Para sua proteção em emergências, este aplicativo precisa do seu consentimento para as seguintes finalidades:
+      </p>
+
+      <div style="display:flex; flex-direction:column; gap:8px; font-size:0.8rem; color:var(--text-main); margin-bottom:16px;">
+        <div style="background:rgba(255,255,255,0.04); padding:10px; border-radius:8px; border-left:3px solid var(--color-viva-teal);">
+          📍 <strong>Geolocalização:</strong> Captura sua localização estimada no momento do clique para envio direto ao seu contato.
+        </div>
+        <div style="background:rgba(255,255,255,0.04); padding:10px; border-radius:8px; border-left:3px solid var(--color-viva-pink);">
+          🎙️ <strong>Áudio de Evidência:</strong> Grava até 15 segundos do som ambiente para salvaguarda no histórico do seu aparelho.
+        </div>
+        <div style="background:rgba(255,255,255,0.04); padding:10px; border-radius:8px; border-left:3px solid var(--color-warning);">
+          🔒 <strong>Privacidade:</strong> Nenhum dado é vendido ou compartilhado publicamente. Você pode apagar seus registros locais a qualquer momento.
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px;">
+        <button id="btnCancelConsent" class="btn-cancel-panic" style="flex:1; padding:10px; font-size:0.85rem;">Agora Não</button>
+        <button id="btnAcceptConsent" class="btn-primary" style="flex:1.5; padding:10px; font-size:0.85rem;">Concordo e Autorizo</button>
+      </div>
+    </div>
   </div>
 
   <!-- MODAL DE INSTRUÇÕES DE INSTALAÇÃO NO CELULAR -->
