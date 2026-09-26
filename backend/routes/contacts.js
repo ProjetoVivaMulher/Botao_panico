@@ -16,7 +16,7 @@ router.get('/', (req, res) => {
   const contacts = store.readAll();
   if (contacts.length === 0) {
     // Retorna contato padrão inicial
-    const defaultContact = [{ id: 'default-1', name: 'Central Viva Mulher', phone: '552139553874', isDefault: true }];
+    const defaultContact = [{ id: 'default-1', name: 'Central Viva Mulher (Exemplo)', phone: '5521999999999', isDefault: true }];
     return res.json(defaultContact);
   }
   res.json(contacts);

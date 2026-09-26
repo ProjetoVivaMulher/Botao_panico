@@ -264,7 +264,7 @@ const AppController = {
 
     // 6. Enviar via WhatsApp para Contatos Cadastrados
     const contacts = window.ContactsModule ? window.ContactsModule.getContacts() : [];
-    const primaryPhone = contacts.length > 0 ? contacts[0].phone : '552139553874';
+    const primaryPhone = contacts.length > 0 ? contacts[0].phone : '5521999999999';
 
     let whatsappUrl = `https://wa.me/${primaryPhone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
     if (window.EmergencyMessageModule) {

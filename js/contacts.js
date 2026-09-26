@@ -21,7 +21,7 @@ const ContactsModule = {
     }
     // Retorna contatos padrão se não houver cadastrados
     return [
-      { id: 'default-1', name: 'Contato de Apoio (Exemplo)', phone: '552139553874', isDefault: true }
+      { id: 'default-1', name: 'Contato de Apoio (Exemplo)', phone: '5521999999999', isDefault: true }
     ];
   },
 

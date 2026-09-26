@@ -33,7 +33,7 @@ O **Botão de Pânico Viva Mulher** é um módulo de apoio comunitário e segura
 * **Captura de Geolocalização (GPS):** Coleta automática de alta precisão com geração de link no Google Maps e fallback seguro caso o sinal esteja indisponível.
 * **Mensagem Padronizada:** Formatação de mensagem de socorro com ID único (`EVT-AAAA-MMDD-XXXX`), data, horário e localização para envio via WhatsApp (`wa.me`).
 * **Gravação de Áudio de Evidência:** Gravação de até 15 segundos de som ambiente disparada no acionamento ou manualmente, com player de reprodução integrado no histórico.
-* **Modo Camuflado (Calculadora de Proteção):** Interface disfarçada de calculadora funcional, permitindo retornar ao modo Viva Mulher digitando o PIN secreto `7777`.
+* **Modo Camuflado (Calculadora de Proteção):** Interface disfarçada de calculadora funcional, permitindo retornar ao modo Viva Mulher digitando um código PIN secreto instruído presencialmente na capacitação/oficina.
 * **Canais Diretos de Emergência Pública:** Atalhos nativos de discagem rápida para **190** (Polícia Militar), **180** (Central da Mulher) e **192** (SAMU).
 * **PWA Instalável e Offline:** Suporte a instalação na tela inicial (Android/iOS) e cache offline via Service Worker (`sw.js`).
 
