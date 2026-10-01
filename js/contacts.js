@@ -34,12 +34,16 @@ const ContactsModule = {
   addContact(name, phone) {
     const contacts = this.getContacts();
 
-    // Limpar caracteres não numéricos do telefone para envio via WhatsApp/SMS
-    const cleanPhone = phone.replace(/\D/g, '');
+    const cleanName = (typeof name === 'string' ? name.trim() : '').slice(0, 80);
+    const cleanPhone = (typeof phone === 'string' ? phone.replace(/\D/g, '') : '');
+
+    if (!cleanName || cleanPhone.length < 8) {
+      throw new Error('Nome e telefone válidos são obrigatórios.');
+    }
 
     const newContact = {
-      id: 'contact-' + Date.now(),
-      name: name.trim(),
+      id: 'contact-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+      name: cleanName,
       phone: cleanPhone,
       isDefault: false
     };
@@ -66,11 +70,19 @@ const ContactsModule = {
    */
   _save(contacts) {
     try {
-      localStorage.setItem(STORAGE_KEY_CONTACTS, JSON.stringify(contacts));
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(STORAGE_KEY_CONTACTS, JSON.stringify(contacts));
+      }
     } catch (e) {
       console.error("[ContactsModule] Erro ao salvar contatos:", e);
     }
   }
 };
 
-window.ContactsModule = ContactsModule;
+// Exportação compatível com Node.js e Navegador
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = ContactsModule;
+}
+if (typeof window !== 'undefined') {
+  window.ContactsModule = ContactsModule;
+}

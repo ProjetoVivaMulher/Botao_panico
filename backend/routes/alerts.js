@@ -4,11 +4,11 @@ const router = express.Router();
 const alertsRepository = require('../repositories/alertsRepository');
 const { isValidTransition, computeTimings } = require('../services/statusTransitions');
 const { requireBasicAuth } = require('../middleware/auth');
-const { requireFields } = require('../middleware/validate');
+const { requireFields, validateCoordinates } = require('../middleware/validate');
 const logger = require('../services/logger');
 
 // POST /api/alerts - Criação de novo alerta (Público / App Mobile)
-router.post('/', requireFields(['user_id', 'location']), async (req, res, next) => {
+router.post('/', requireFields(['user_id', 'location']), validateCoordinates, async (req, res, next) => {
   try {
     const { user_id, location, message, battery_level } = req.body;
 

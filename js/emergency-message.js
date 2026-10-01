@@ -6,16 +6,20 @@
 const EmergencyMessageModule = {
 
   // Monta a mensagem que será enviada no pedido de ajuda
-  buildMessage({ eventId, dateFormatted, timeFormatted, loc }) {
+  buildMessage({ eventId, dateFormatted, timeFormatted, loc, isSilent }) {
 
     // Verifica se a localização foi encontrada
     const locationText = loc && loc.success
       ? `📍 Localização: ${loc.mapsUrl}`
       : '📍 Localização não disponível';
 
+    const silentWarning = isSilent
+      ? `\n⚠️ ATENÇÃO: A VÍTIMA NÃO PODE FALAR / COMUNICAR-SE VERBALMENTE. NÃO LIGUE, ENVIE SOCORRO IMEDIATO OU RESPONDA POR MENSAGEM!\n`
+      : '';
+
     // Cria a mensagem de emergência
     return `🚨 ALERTA DE EMERGÊNCIA - VIVA MULHER 🚨
-
+${silentWarning}
 Preciso de ajuda!
 
 📅 Data: ${dateFormatted}
@@ -41,5 +45,10 @@ Esta mensagem foi gerada pelo Botão de Pânico Viva Mulher.`;
   }
 };
 
-// Deixa o módulo disponível para os outros arquivos do projeto
-window.EmergencyMessageModule = EmergencyMessageModule;
+// Exportação compatível com Node.js e Navegador
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = EmergencyMessageModule;
+}
+if (typeof window !== 'undefined') {
+  window.EmergencyMessageModule = EmergencyMessageModule;
+}

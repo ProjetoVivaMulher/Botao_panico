@@ -44,7 +44,10 @@ function createJsonStore(fileName) {
 
   function writeAll(records) {
     ensureStoreExists();
-    fs.writeFileSync(filePath, JSON.stringify(records, null, 2), 'utf8');
+    const tempPath = `${filePath}.${Date.now()}.${Math.floor(Math.random() * 10000)}.tmp`;
+    const data = JSON.stringify(records, null, 2);
+    fs.writeFileSync(tempPath, data, 'utf8');
+    fs.renameSync(tempPath, filePath);
   }
 
   return { ensureStoreExists, readAll, writeAll, filePath };

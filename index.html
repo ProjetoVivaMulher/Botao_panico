@@ -68,6 +68,23 @@
         <button id="btnRefreshLoc" class="btn-refresh-loc">🔄 Atualizar</button>
       </section>
 
+      <!-- BARRA DE ACESSIBILIDADE INCLUSIVA (CEGAS, SURDAS E MUDAS) -->
+      <section class="accessibility-bar" aria-label="Acessibilidade Inclusiva">
+        <div class="accessibility-title">
+          <span>♿ Acessibilidade Inclusiva</span>
+        </div>
+        <div class="accessibility-toggles">
+          <button id="btnToggleSilentMode" class="btn-access-tag" aria-pressed="false" title="Alerta com aviso de vítima impossibilitada de falar">
+            <span class="access-icon">🔇</span>
+            <span class="access-text">Modo Não-Falo / Muda</span>
+          </button>
+          <button id="btnToggleHaptic" class="btn-access-tag active" aria-pressed="true" title="Vibração tátil em cliques e contagem">
+            <span class="access-icon">📳</span>
+            <span class="access-text">Vibração Tátil</span>
+          </button>
+        </div>
+      </section>
+
       <!-- SEÇÃO HERO - BOTÃO DE PÂNICO -->
       <section class="panic-hero-section">
         <div class="panic-button-wrapper">
@@ -212,8 +229,8 @@
     <button id="btnCancelPanic" class="btn-cancel-panic">✖ CANCELAR DISPARO</button>
   </div>
 
-  <!-- TELA CAMUFLADA (MODO CALCULADORA DE PROTEÇÃO) -->
-  <div id="camouflageScreen" class="camouflage-screen">
+  <!-- TELA CAMUFLADA (MODO CALCULADORA DE PROTEÇÃO - PIN 7777) -->
+  <div id="camouflageScreen" class="camouflage-screen" data-pin="7777">
     <div class="calc-display">
       <div id="calcPrev" class="calc-prev"></div>
       <div id="calcCurrent" class="calc-current">0</div>
@@ -245,19 +262,37 @@
     </div>
   </div>
 
+  <!-- ARIA LIVE REGION (LEITORES DE TELA PARA MULHERES CEGAS / BAIXA VISÃO) -->
+  <div id="ariaLiveRegion" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
+
   <!-- TOAST NOTIFICATION -->
   <div id="toastNotification" class="toast-notification">
     <span id="toastText">Notificação</span>
   </div>
 
+  <!-- VLIBRAS - TRADUÇÃO EM LIBRAS PARA MULHERES SURDAS -->
+  <div vw class="enabled">
+    <div vw-access-button class="active"></div>
+    <div vw-plugin-wrapper>
+      <div class="vw-plugin-top-wrapper"></div>
+    </div>
+  </div>
+  <script src="https://vlibras.gov.br/app/vlibras-plugin.js"></script>
+  <script>
+    if (typeof window.VLibras !== 'undefined') {
+      new window.VLibras.Widget('https://vlibras.gov.br/app');
+    }
+  </script>
+
   <!-- SCRIPTS -->
-  <script src="js/geolocation.js?v=105"></script>
-  <script src="js/emergency-message.js?v=105"></script>
-  <script src="js/contacts.js?v=105"></script>
-  <script src="js/camouflage.js?v=105"></script>
-  <script src="js/audio.js?v=105"></script>
-  <script src="js/pwa-install.js?v=105"></script>
-  <script src="js/app.js?v=105"></script>
+  <script src="js/geolocation.js?v=106"></script>
+  <script src="js/accessibility.js?v=106"></script>
+  <script src="js/emergency-message.js?v=106"></script>
+  <script src="js/contacts.js?v=106"></script>
+  <script src="js/camouflage.js?v=106"></script>
+  <script src="js/audio.js?v=106"></script>
+  <script src="js/pwa-install.js?v=106"></script>
+  <script src="js/app.js?v=106"></script>
 
   <!-- Vercel Web Analytics -->
   <script>

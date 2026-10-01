@@ -1,31 +1,48 @@
 /**
  * Viva Mulher - Botão de Pânico
- * Módulo de Geolocalização
+ * Módulo de Geolocalização (Alta Precisão, Resiliente & Zero Travamentos)
  */
 
 const GeolocationModule = {
   currentPosition: null,
+  lastKnownGoodPosition: null,
   isFetching: false,
 
   /**
-   * Captura a posição atual do dispositivo com alta precisão
-   * @returns {Promise<Object>} Dados contendo lat, lng, mapsUrl, accuracy, timestamp
+   * Captura a posição atual com timeout de segurança rígido para nunca travar o fluxo de socorro
+   * @param {number} maxWaitMs Tempo máximo de espera antes do fallback (padrão 6000ms = 6s)
+   * @returns {Promise<Object>}
    */
-  async getCurrentLocation() {
+  async getCurrentLocation(maxWaitMs = 6000) {
+    if (this.isFetching && this.currentPosition) {
+      return this.currentPosition;
+    }
+
     this.isFetching = true;
 
-    return new Promise((resolve) => {
+    // Timeout de segurança com fallback garantido
+    const timeoutPromise = new Promise((resolve) => {
+      setTimeout(() => {
+        if (this.lastKnownGoodPosition) {
+          console.warn("[GeolocationModule] GPS timeout. Usando última posição conhecida.");
+          resolve(this.lastKnownGoodPosition);
+        } else {
+          resolve(this.getFallbackData("Tempo limite para obter localização excedido."));
+        }
+      }, maxWaitMs);
+    });
+
+    const gpsPromise = new Promise((resolve) => {
       if (!navigator.geolocation) {
         this.isFetching = false;
-        const fallback = this.getFallbackData("Geolocalização não suportada pelo navegador.");
-        resolve(fallback);
+        resolve(this.getFallbackData("Geolocalização não suportada pelo navegador."));
         return;
       }
 
       const options = {
         enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
+        timeout: maxWaitMs - 500,
+        maximumAge: 30000 // Aceita posição em cache de até 30 segundos
       };
 
       navigator.geolocation.getCurrentPosition(
@@ -45,6 +62,7 @@ const GeolocationModule = {
           };
 
           this.currentPosition = result;
+          this.lastKnownGoodPosition = result;
           resolve(result);
         },
         (error) => {
@@ -65,16 +83,23 @@ const GeolocationModule = {
               break;
           }
 
-          console.warn("[GeolocationModule]", errorMessage);
-          resolve(this.getFallbackData(errorMessage));
+          if (this.lastKnownGoodPosition) {
+            resolve(this.lastKnownGoodPosition);
+          } else {
+            resolve(this.getFallbackData(errorMessage));
+          }
         },
         options
       );
     });
+
+    return Promise.race([gpsPromise, timeoutPromise]).finally(() => {
+      this.isFetching = false;
+    });
   },
 
   /**
-   * Retorna estrutura padrão para quando o GPS falhar ou não estiver disponível
+   * Estrutura padrão para quando o GPS falhar
    */
   getFallbackData(reason) {
     return {
