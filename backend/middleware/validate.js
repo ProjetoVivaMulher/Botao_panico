@@ -35,10 +35,41 @@ function validateCoordinates(req, res, next) {
       });
     }
   }
+// Prevenção de Prototype Pollution e Sanitização básica de Strings
+function sanitizeObject(obj) {
+  if (!obj || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(sanitizeObject);
+
+  const clean = {};
+  for (const key of Object.keys(obj)) {
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+      continue; // Bloqueia injeção de propriedades maliciosas
+    }
+    const val = obj[key];
+    if (typeof val === 'string') {
+      clean[key] = val.trim().replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    } else if (typeof val === 'object') {
+      clean[key] = sanitizeObject(val);
+    } else {
+      clean[key] = val;
+    }
+  }
+  return clean;
+}
+
+function sanitizeInput(req, res, next) {
+  if (req.body) {
+    req.body = sanitizeObject(req.body);
+  }
+  if (req.query) {
+    req.query = sanitizeObject(req.query);
+  }
   next();
 }
 
 module.exports = {
   requireFields,
-  validateCoordinates
+  validateCoordinates,
+  sanitizeInput,
+  sanitizeObject
 };

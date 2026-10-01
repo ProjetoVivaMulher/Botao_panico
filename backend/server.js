@@ -10,6 +10,7 @@ require('dotenv').config();
 
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 const { securityHeaders, rateLimiter } = require('./middleware/security');
+const { sanitizeInput } = require('./middleware/validate');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -46,9 +47,10 @@ app.use(cors({
   credentials: true
 }));
 
-// 3. Proteção contra Payload Overload (Limite de 1MB para JSON comum)
+// 3. Proteção contra Payload Overload e Prototype Pollution / Sanitização
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+app.use(sanitizeInput);
 
 // 4. Rate Limiting Geral e Específico
 app.use('/api/', rateLimiter({ windowMs: 60 * 1000, max: 120, message: 'Muitas requisições. Tente novamente em 1 minuto.' }));

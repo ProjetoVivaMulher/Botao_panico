@@ -209,8 +209,16 @@ const CamouflageModule = {
   }
 };
 
-document.addEventListener('DOMContentLoaded', () => {
-  CamouflageModule.init();
-});
+if (typeof document !== 'undefined') {
+  document.addEventListener('DOMContentLoaded', () => {
+    CamouflageModule.init();
+  });
+}
 
-window.CamouflageModule = CamouflageModule;
+// Exportação compatível com Node.js e Navegador
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = CamouflageModule;
+}
+if (typeof window !== 'undefined') {
+  window.CamouflageModule = CamouflageModule;
+}

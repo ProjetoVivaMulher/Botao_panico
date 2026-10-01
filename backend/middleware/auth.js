@@ -13,6 +13,20 @@
  * pedir ajuda.
  */
 
+const crypto = require('crypto');
+
+function safeCompare(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) {
+    // Evita vazamento de tempo executando comparação dummy
+    crypto.timingSafeEqual(bufA, bufA);
+    return false;
+  }
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
 function requireBasicAuth(req, res, next) {
   const expectedUser = process.env.ADMIN_USER;
   const expectedPassword = process.env.ADMIN_PASSWORD;
@@ -35,10 +49,15 @@ function requireBasicAuth(req, res, next) {
 
   const decoded = Buffer.from(encoded, 'base64').toString('utf8');
   const separatorIndex = decoded.indexOf(':');
+  if (separatorIndex === -1) {
+    res.setHeader('WWW-Authenticate', 'Basic realm="Painel Interno Viva Mulher"');
+    return res.status(401).json({ success: false, error: 'Formato de credencial inválido.' });
+  }
+
   const user = decoded.slice(0, separatorIndex);
   const password = decoded.slice(separatorIndex + 1);
 
-  if (user === expectedUser && password === expectedPassword) {
+  if (safeCompare(user, expectedUser) && safeCompare(password, expectedPassword)) {
     return next();
   }
 
