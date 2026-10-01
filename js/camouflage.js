@@ -30,6 +30,31 @@ const CamouflageModule = {
         this.handleInput(val);
       });
     });
+
+    // Suporte a teclado físico quando a tela estiver visível
+    window.addEventListener('keydown', (e) => {
+      if (!this.screen || !this.screen.classList.contains('active')) return;
+
+      if (e.key >= '0' && e.key <= '9') {
+        this.handleInput(e.key);
+      } else if (e.key === '.' || e.key === ',') {
+        this.handleInput('.');
+      } else if (e.key === '+' || e.key === '-') {
+        this.handleInput(e.key);
+      } else if (e.key === '*') {
+        this.handleInput('×');
+      } else if (e.key === '/') {
+        e.preventDefault();
+        this.handleInput('÷');
+      } else if (e.key === 'Enter' || e.key === '=') {
+        e.preventDefault();
+        this.handleInput('=');
+      } else if (e.key === 'Escape' || e.key === 'c' || e.key === 'C') {
+        this.handleInput('C');
+      } else if (e.key === '%') {
+        this.handleInput('%');
+      }
+    });
   },
 
   activate() {
@@ -54,9 +79,9 @@ const CamouflageModule = {
   handleInput(val) {
     if (!val) return;
 
-    // Verificar código secreto de desmascaramento
+    // Buffer de segurança para destravamento secreto
     if (val >= '0' && val <= '9') {
-      this.inputHistory += val;
+      this.inputHistory = (this.inputHistory + val).slice(-10); // Mantém apenas os últimos 10 dígitos
       if (this.inputHistory.endsWith(this.secretCode)) {
         this.deactivate();
         return;

@@ -18,6 +18,40 @@ const AppController = {
     this.renderContacts();
     this.renderLogs();
     this.updateGpsStatus();
+    this.syncAccessibilityUI();
+  },
+
+  syncAccessibilityUI() {
+    if (window.AccessibilityModule) {
+      if (this.dom.btnToggleSilentMode) {
+        const isSilent = window.AccessibilityModule.isSilentMode();
+        this.dom.btnToggleSilentMode.classList.toggle('active', isSilent);
+        this.dom.btnToggleSilentMode.setAttribute('aria-pressed', isSilent ? 'true' : 'false');
+      }
+      if (this.dom.btnToggleHaptic) {
+        const isHaptic = window.AccessibilityModule.isVibrationEnabled();
+        this.dom.btnToggleHaptic.classList.toggle('active', isHaptic);
+        this.dom.btnToggleHaptic.setAttribute('aria-pressed', isHaptic ? 'true' : 'false');
+      }
+    }
+  },
+
+  handleToggleSilentMode() {
+    if (!window.AccessibilityModule) return;
+    const current = window.AccessibilityModule.isSilentMode();
+    const next = !current;
+    window.AccessibilityModule.setSilentMode(next);
+    this.syncAccessibilityUI();
+    this.showToast(next ? '🔇 Modo Não-Falo / Silencioso ativado.' : '🔊 Modo de emergência padrão ativado.');
+  },
+
+  handleToggleHaptic() {
+    if (!window.AccessibilityModule) return;
+    const current = window.AccessibilityModule.isVibrationEnabled();
+    const next = !current;
+    window.AccessibilityModule.setVibrationEnabled(next);
+    this.syncAccessibilityUI();
+    this.showToast(next ? '📳 Vibração tátil ativada.' : '📴 Vibração tátil desativada.');
   },
 
   cacheDom() {
@@ -43,7 +77,9 @@ const AppController = {
       btnClearLocalData: document.getElementById('btnClearLocalData'),
       lgpdConsentModal: document.getElementById('lgpdConsentModal'),
       btnAcceptConsent: document.getElementById('btnAcceptConsent'),
-      btnCancelConsent: document.getElementById('btnCancelConsent')
+      btnCancelConsent: document.getElementById('btnCancelConsent'),
+      btnToggleSilentMode: document.getElementById('btnToggleSilentMode'),
+      btnToggleHaptic: document.getElementById('btnToggleHaptic')
     };
   },
 
@@ -58,6 +94,14 @@ const AppController = {
 
     if (this.dom.btnRefreshLoc) {
       this.dom.btnRefreshLoc.addEventListener('click', () => this.updateGpsStatus(true));
+    }
+
+    if (this.dom.btnToggleSilentMode) {
+      this.dom.btnToggleSilentMode.addEventListener('click', () => this.handleToggleSilentMode());
+    }
+
+    if (this.dom.btnToggleHaptic) {
+      this.dom.btnToggleHaptic.addEventListener('click', () => this.handleToggleHaptic());
     }
 
     if (this.dom.addContactForm) {
@@ -171,6 +215,12 @@ const AppController = {
     this.isPanicArmed = true;
     this.countdownSeconds = 3;
 
+    if (window.AccessibilityModule) {
+      window.AccessibilityModule.vibrate('PANIC_START');
+      window.AccessibilityModule.announce('Iniciando contagem de socorro. Três segundos.');
+      window.AccessibilityModule.triggerVisualFlash();
+    }
+
     if (this.dom.countdownNumber) {
       this.dom.countdownNumber.textContent = this.countdownSeconds;
     }
@@ -194,6 +244,11 @@ const AppController = {
         this.isPanicArmed = false;
         this.triggerEmergencyAlert();
       } else {
+        if (window.AccessibilityModule) {
+          window.AccessibilityModule.vibrate('COUNTDOWN_TICK');
+          window.AccessibilityModule.announce(this.countdownSeconds + ' segundos');
+          window.AccessibilityModule.triggerVisualFlash();
+        }
         if (this.dom.countdownNumber) {
           this.dom.countdownNumber.textContent = this.countdownSeconds;
         }
@@ -209,10 +264,18 @@ const AppController = {
     if (this.dom.countdownOverlay) {
       this.dom.countdownOverlay.classList.remove('active');
     }
+    if (window.AccessibilityModule) {
+      window.AccessibilityModule.vibrate('CANCELLED');
+      window.AccessibilityModule.announce('Disparo cancelado');
+    }
     this.showToast('✖ Disparo de emergência cancelado.');
   },
 
   async triggerEmergencyAlert() {
+    if (window.AccessibilityModule) {
+      window.AccessibilityModule.vibrate('ALERT_SENT');
+      window.AccessibilityModule.announce('Alerta de socorro disparado!');
+    }
     this.showToast('🚨 Disparando alerta de socorro...');
 
     // 1. Obter Localização Atual
@@ -230,6 +293,8 @@ const AppController = {
       String(now.getDate()).padStart(2, '0') + '-' +
       Math.floor(1000 + Math.random() * 9000);
 
+    const isSilent = window.AccessibilityModule ? window.AccessibilityModule.isSilentMode() : false;
+
     // 3. Montar Mensagem de Socorro Padronizada
     let message = `🚨 ALERTA DE EMERGÊNCIA - VIVA MULHER 🚨\n\nPreciso de ajuda!\n📅 Data: ${dateFormatted}\n🕐 Horário: ${timeFormatted}\n🆔 Evento: ${eventId}\n\n`;
     if (loc && loc.success) {
@@ -244,7 +309,8 @@ const AppController = {
         eventId,
         dateFormatted,
         timeFormatted,
-        loc
+        loc,
+        isSilent
       });
     }
 
@@ -271,7 +337,15 @@ const AppController = {
       whatsappUrl = window.EmergencyMessageModule.buildWhatsAppUrl(primaryPhone, message);
     }
 
-    window.open(whatsappUrl, '_blank');
+    // Abertura garantida (fallback automático caso o navegador bloqueie popups)
+    try {
+      const win = window.open(whatsappUrl, '_blank');
+      if (!win || win.closed || typeof win.closed === 'undefined') {
+        window.location.href = whatsappUrl;
+      }
+    } catch (e) {
+      window.location.href = whatsappUrl;
+    }
   },
 
   // ==========================================

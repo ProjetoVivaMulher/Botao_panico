@@ -1,6 +1,6 @@
 /**
  * Viva Mulher - Botão de Pânico
- * Módulo de Gravação de Áudio de Emergência (Evidência Ambiental)
+ * Módulo de Gravação de Áudio de Emergência (Evidência Ambiental & Compatibilidade Multiplataforma)
  */
 
 const AudioModule = {
@@ -8,28 +8,56 @@ const AudioModule = {
   audioChunks: [],
   isRecording: false,
   stream: null,
+  stopTimeout: null,
+
+  /**
+   * Identifica o formato de áudio suportado pelo navegador (iOS Safari, Android Chrome, Firefox)
+   */
+  getSupportedMimeType() {
+    if (typeof MediaRecorder === 'undefined') return '';
+    const types = [
+      'audio/webm;codecs=opus',
+      'audio/webm',
+      'audio/mp4',
+      'audio/aac',
+      'audio/ogg;codecs=opus'
+    ];
+    for (const t of types) {
+      if (MediaRecorder.isTypeSupported(t)) {
+        return t;
+      }
+    }
+    return '';
+  },
 
   /**
    * Inicia a gravação de áudio ambiente
-   * @param {number} durationMs Duração padrão da gravação em ms (padrão 15000ms = 15s)
-   * @returns {Promise<boolean>} Sucesso na inicialização
+   * @param {number} durationMs Duração da gravação em ms (padrão 15000ms = 15s)
+   * @returns {Promise<boolean>}
    */
   async startRecording(durationMs = 15000) {
     if (this.isRecording) return false;
 
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        console.warn("[AudioModule] Negação ou falta de suporte para gravação de áudio.");
+        console.warn("[AudioModule] Gravação de áudio não suportada pelo navegador.");
         return false;
       }
 
-      this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      this.audioChunks = [];
-      
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 
-                       MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '';
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
 
-      this.mediaRecorder = new MediaRecorder(this.stream, mimeType ? { mimeType } : undefined);
+      this.audioChunks = [];
+      const mimeType = this.getSupportedMimeType();
+
+      this.mediaRecorder = mimeType
+        ? new MediaRecorder(this.stream, { mimeType })
+        : new MediaRecorder(this.stream);
 
       this.mediaRecorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
@@ -39,32 +67,39 @@ const AudioModule = {
 
       this.mediaRecorder.onstop = () => {
         this.isRecording = false;
-        const audioBlob = new Blob(this.audioChunks, { type: this.mediaRecorder.mimeType || 'audio/webm' });
+        clearTimeout(this.stopTimeout);
+
+        const type = (this.mediaRecorder && this.mediaRecorder.mimeType) || 'audio/webm';
+        const audioBlob = new Blob(this.audioChunks, { type });
         const audioUrl = URL.createObjectURL(audioBlob);
-        
-        // Notificar o AppController sobre a gravação concluída
+
+        // Notifica o AppController
         if (window.AppController && window.AppController.onAudioRecorded) {
           window.AppController.onAudioRecorded(audioUrl, audioBlob);
         }
 
-        // Parar todas as faixas do microfone
-        if (this.stream) {
-          this.stream.getTracks().forEach(track => track.stop());
-          this.stream = null;
-        }
+        // Libera as faixas do microfone imediatamente
+        this.cleanupStream();
+      };
+
+      this.mediaRecorder.onerror = (e) => {
+        console.error("[AudioModule] Erro durante a gravação:", e);
+        this.stopRecording();
       };
 
       this.mediaRecorder.start(1000);
       this.isRecording = true;
 
-      // Parar automaticamente após a duração especificada
-      setTimeout(() => {
+      // Timer automático para encerrar a gravação
+      this.stopTimeout = setTimeout(() => {
         this.stopRecording();
       }, durationMs);
 
       return true;
     } catch (error) {
-      console.error("[AudioModule] Erro ao iniciar gravação de áudio:", error);
+      console.warn("[AudioModule] Microfone não autorizado ou erro de captura:", error.message);
+      this.cleanupStream();
+      this.isRecording = false;
       return false;
     }
   },
@@ -73,8 +108,28 @@ const AudioModule = {
    * Interrompe a gravação atual
    */
   stopRecording() {
-    if (this.mediaRecorder && this.isRecording) {
-      this.mediaRecorder.stop();
+    clearTimeout(this.stopTimeout);
+    if (this.mediaRecorder && this.isRecording && this.mediaRecorder.state !== 'inactive') {
+      try {
+        this.mediaRecorder.stop();
+      } catch (e) {
+        console.warn("[AudioModule] Erro ao parar gravador:", e);
+      }
+    }
+    this.isRecording = false;
+  },
+
+  /**
+   * Libera os recursos de microfone do dispositivo
+   */
+  cleanupStream() {
+    if (this.stream) {
+      try {
+        this.stream.getTracks().forEach((track) => track.stop());
+      } catch (e) {
+        // Ignora
+      }
+      this.stream = null;
     }
   }
 };
