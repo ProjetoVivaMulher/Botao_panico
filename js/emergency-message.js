@@ -35,7 +35,12 @@ Esta mensagem foi gerada pelo Botão de Pânico Viva Mulher.`;
   buildWhatsAppUrl(phone, message) {
 
     // Remove caracteres que não sejam números do telefone
-    const cleanPhone = String(phone).replace(/\D/g, '');
+    let cleanPhone = String(phone || '').replace(/\D/g, '');
+
+    // Se o usuário digitou apenas DDD + número (10 ou 11 dígitos), prefixa com 55 (Brasil)
+    if (cleanPhone.length === 10 || cleanPhone.length === 11) {
+      cleanPhone = '55' + cleanPhone;
+    }
 
     // Codifica a mensagem para funcionar corretamente no link
     const encodedMessage = encodeURIComponent(message);
