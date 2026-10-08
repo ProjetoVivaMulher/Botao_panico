@@ -6,11 +6,13 @@ backend/node_modules/
 .env
 backend/.env
 
-# Dados locais e uploads
+# Dados locais, uploads e backups (LGPD)
 backend/data/*.json
 backend/data/*.jsonl
 backend/uploads/*
 !backend/uploads/.gitkeep
+backend/backups/*
+!backend/backups/.gitkeep
 
 # Logs do sistema e SO
 npm-debug.log*
