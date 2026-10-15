@@ -3,7 +3,7 @@
  * Service Worker para suporte a PWA e funcionamento offline resiliente
  */
 
-const CACHE_NAME = 'viva-mulher-v111';
+const CACHE_NAME = 'viva-mulher-v112';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -17,6 +17,7 @@ const ASSETS_TO_CACHE = [
   './js/contacts.js',
   './js/camouflage.js',
   './js/audio.js',
+  './js/audio-store.js',
   './js/app.js',
   './js/pwa-install.js',
   './manifest.json',

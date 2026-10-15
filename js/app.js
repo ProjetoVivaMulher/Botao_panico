@@ -226,6 +226,9 @@ const AppController = {
       localStorage.removeItem(STORAGE_KEY_LOGS);
       localStorage.removeItem('viva_mulher_emergency_contacts');
     } catch (e) { /* ignore */ }
+    if (window.AudioStore) {
+      try { await window.AudioStore.clear(); } catch (e) { /* ignore */ }
+    }
 
     this.renderContacts();
     this.renderLogs();
@@ -425,6 +428,9 @@ const AppController = {
         localStorage.removeItem('viva_mulher_emergency_contacts');
       } catch (e) {
         console.error('[AppController] Erro ao limpar dados:', e);
+      }
+      if (window.AudioStore) {
+        window.AudioStore.clear().catch(() => {});
       }
       this.renderContacts();
       this.renderLogs();
@@ -642,11 +648,11 @@ const AppController = {
     }
   },
 
-  onAudioRecorded(audioUrl) {
+  onAudioRecorded(audioUrl, audioBlob) {
     this.isRecordingManualAudio = false;
     if (this.dom.manualAudioText) this.dom.manualAudioText.textContent = 'Gravar Áudio de Evidência (15s)';
     if (this.dom.manualAudioIcon) this.dom.manualAudioIcon.textContent = '🎙️';
-    this.attachAudioToLatestLog(audioUrl);
+    this.attachAudioToLatestLog(audioBlob);
     this.showToast('✅ Áudio de evidência salvo com segurança!');
   },
 
@@ -657,7 +663,12 @@ const AppController = {
     try {
       const logs = this.getLogs();
       logs.unshift(logData);
-      if (logs.length > 10) logs.pop();
+      while (logs.length > 10) {
+        const removed = logs.pop();
+        if (removed && removed.audioId && window.AudioStore) {
+          window.AudioStore.remove(removed.audioId).catch(() => {});
+        }
+      }
       localStorage.setItem(STORAGE_KEY_LOGS, JSON.stringify(logs));
       this.renderLogs();
     } catch (e) {
@@ -674,11 +685,26 @@ const AppController = {
     }
   },
 
-  attachAudioToLatestLog(audioUrl) {
+  async attachAudioToLatestLog(audioBlob) {
     const logs = this.getLogs();
-    if (logs.length > 0) {
-      logs[0].audioUrl = audioUrl;
-      localStorage.setItem(STORAGE_KEY_LOGS, JSON.stringify(logs));
+    if (logs.length === 0) return;
+
+    let audioId = null;
+    if (audioBlob && window.AudioStore) {
+      audioId = 'audio_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+      try {
+        await window.AudioStore.save(audioId, audioBlob);
+      } catch (e) {
+        console.error('[AppController] Falha ao salvar o áudio no aparelho:', e);
+        audioId = null;
+      }
+    }
+
+    const latest = this.getLogs();
+    if (latest.length > 0) {
+      delete latest[0].audioUrl; // URL blob não sobrevive ao recarregamento
+      latest[0].audioId = audioId;
+      localStorage.setItem(STORAGE_KEY_LOGS, JSON.stringify(latest));
       this.renderLogs();
     }
   },
@@ -705,14 +731,38 @@ const AppController = {
         <div class="log-details">
           ${log.loc && log.loc.success ? `📍 <a href="${this.escapeHtml(log.loc.mapsUrl)}" target="_blank" rel="noopener">Ver mapa de localização</a>` : '📍 Localização indisponível'}
         </div>
-        ${log.audioUrl ? `
-          <div style="margin-top:6px;">
-            <audio controls src="${this.escapeHtml(log.audioUrl)}" style="width:100%; height:32px; border-radius:4px;"></audio>
-          </div>
-        ` : ''}
+        ${log.audioId ? '<div class="log-audio" style="margin-top:6px;"></div>' : ''}
       `;
+      if (log.audioId) {
+        this.hydrateAudio(item.querySelector('.log-audio'), log.audioId);
+      }
       this.dom.logsList.appendChild(item);
     });
+  },
+
+  async hydrateAudio(slot, audioId) {
+    if (!slot) return;
+    if (!window.AudioStore) {
+      slot.innerHTML = '<span style="color:var(--text-muted); font-size:0.78rem;">🎙️ Áudio indisponível</span>';
+      return;
+    }
+    try {
+      const blob = await window.AudioStore.get(audioId);
+      if (!blob) {
+        slot.innerHTML = '<span style="color:var(--text-muted); font-size:0.78rem;">🎙️ Áudio indisponível</span>';
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      const audio = document.createElement('audio');
+      audio.controls = true;
+      audio.src = url;
+      audio.style.cssText = 'width:100%; height:32px; border-radius:4px;';
+      audio.addEventListener('emptied', () => URL.revokeObjectURL(url), { once: true });
+      slot.innerHTML = '';
+      slot.appendChild(audio);
+    } catch (e) {
+      slot.innerHTML = '<span style="color:var(--text-muted); font-size:0.78rem;">🎙️ Áudio indisponível</span>';
+    }
   },
 
   // ==========================================
