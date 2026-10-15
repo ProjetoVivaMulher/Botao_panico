@@ -151,6 +151,15 @@ const AppController = {
 
     localStorage.setItem(STORAGE_KEY_SKIP_ONBOARDING, 'true');
     this.closeModal('onboardingModal');
+
+    // Consentimentos locais (data/hora + versão do termo) e pedido de GPS com toque
+    if (window.UserModule && UserModule.recordConsent) {
+      UserModule.recordConsent('lgpd', true);
+      UserModule.recordConsent('location', consentLocation);
+      UserModule.recordConsent('selfDeclared', selfDeclaredWoman);
+    }
+    this.ensureLocationPermission();
+
     this.updateProfileBanner();
     this.showToast(res.offline
       ? '✅ Cadastro salvo no celular. Vamos sincronizar quando houver internet.'
@@ -239,17 +248,16 @@ const AppController = {
   },
 
   async toggleLocationConsent() {
-    if (!window.UserModule || !UserModule.isRegistered()) {
-      this.showToast('ℹ️ Faça o cadastro para registrar seu consentimento de localização.');
-      this.openModal('onboardingModal');
-      return;
-    }
+    if (!window.UserModule) return;
     const next = !UserModule.hasLocationConsent();
     await UserModule.updateConsent({ consentLocation: next });
+    // Guarda o consentimento localmente mesmo sem cadastro (prova LGPD)
+    if (UserModule.recordConsent) UserModule.recordConsent('location', next);
     this.updateLocationConsentUI();
     this.showToast(next
       ? '📍 Sua localização será compartilhada no socorro.'
       : '📍 Localização desativada. O socorro pode ficar menos preciso.');
+    if (next) this.ensureLocationPermission(true);
   },
 
   updateLocationConsentUI() {
@@ -361,6 +369,11 @@ const AppController = {
       locationStatusText: document.getElementById('locationStatusText'),
       locationStatusSub: document.getElementById('locationStatusSub'),
       btnRefreshLoc: document.getElementById('btnRefreshLoc'),
+      btnActivateLocation: document.getElementById('btnActivateLocation'),
+      locationModal: document.getElementById('locationModal'),
+      locationModalBody: document.getElementById('locationModalBody'),
+      btnEnableLocation: document.getElementById('btnEnableLocation'),
+      btnLocationLater: document.getElementById('btnLocationLater'),
       contactsList: document.getElementById('contactsList'),
       addContactForm: document.getElementById('addContactForm'),
       contactNameInput: document.getElementById('contactNameInput'),
@@ -408,6 +421,9 @@ const AppController = {
     on(this.dom.btnPanic, 'click', () => this.handlePanicButtonClick());
     on(this.dom.btnCancelPanic, 'click', () => this.cancelPanic());
     on(this.dom.btnRefreshLoc, 'click', () => this.updateGpsStatus(true));
+    on(this.dom.btnActivateLocation, 'click', () => this.ensureLocationPermission(true));
+    on(this.dom.btnEnableLocation, 'click', () => this.requestLocationFromGesture());
+    on(this.dom.btnLocationLater, 'click', () => this.closeModal('locationModal'));
     on(this.dom.btnToggleSilentMode, 'click', () => this.handleToggleSilentMode());
     on(this.dom.btnToggleHaptic, 'click', () => this.handleToggleHaptic());
 
@@ -423,8 +439,14 @@ const AppController = {
         return this.showFormError('regError', 'Para continuar, marque as três opções: aceitar o Termo/LGPD, a declaração e o compartilhamento da localização.');
       }
       localStorage.setItem(STORAGE_KEY_SKIP_ONBOARDING, 'true');
+      if (window.UserModule && UserModule.recordConsent) {
+        UserModule.recordConsent('lgpd', true);
+        UserModule.recordConsent('location', true);
+        UserModule.recordConsent('selfDeclared', true);
+      }
       this.closeModal('onboardingModal');
       this.showToast('Você pode se cadastrar quando quiser.');
+      this.ensureLocationPermission();
     });
     on(this.dom.linkLgpdInline, 'click', () => this.openLgpd());
 
@@ -447,9 +469,18 @@ const AppController = {
   async updateGpsStatus(userInitiated = false) {
     if (!this.dom.locationStatusDot || !window.GeolocationModule) return;
 
+    // A permissão do navegador só é concedida a partir de um toque (requisito do iOS).
+    // Sem toque, não insistimos: mostramos o convite para ativar.
+    const state = await window.GeolocationModule.getPermissionState();
+    if (!userInitiated && state !== 'granted') {
+      this.showLocationNeedsActivation(state);
+      return;
+    }
+
     this.dom.locationStatusDot.className = 'status-dot';
     this.dom.locationStatusText.textContent = 'Verificando GPS...';
     this.dom.locationStatusSub.textContent = 'Buscando coordenadas de alta precisão';
+    if (this.dom.btnActivateLocation) this.dom.btnActivateLocation.style.display = 'none';
 
     const loc = await window.GeolocationModule.getCurrentLocation();
 
@@ -462,8 +493,58 @@ const AppController = {
       this.dom.locationStatusDot.className = 'status-dot';
       this.dom.locationStatusText.textContent = 'GPS Indisponível';
       this.dom.locationStatusSub.textContent = (loc && loc.reason) || 'Usando modo de contingência';
-      if (userInitiated) this.showToast('⚠️ Não foi possível obter o GPS.');
+      if (this.dom.btnActivateLocation) this.dom.btnActivateLocation.style.display = 'inline-block';
+      if (userInitiated) this.showToast('⚠️ Não foi possível obter o GPS. Toque em "Ativar GPS".');
     }
+  },
+
+  showLocationNeedsActivation(state) {
+    if (this.dom.locationStatusDot) this.dom.locationStatusDot.className = 'status-dot';
+    if (this.dom.locationStatusText) this.dom.locationStatusText.textContent = 'Localização desativada';
+    if (this.dom.locationStatusSub) {
+      this.dom.locationStatusSub.textContent = state === 'denied'
+        ? 'Bloqueada no navegador — toque em "Ativar GPS"'
+        : 'Toque em "Ativar GPS" para permitir';
+    }
+    if (this.dom.btnActivateLocation) this.dom.btnActivateLocation.style.display = 'inline-block';
+  },
+
+  // Mostra o convite para ativar a localização (a permissão nativa dispara no toque do botão)
+  async ensureLocationPermission(force = false) {
+    if (!window.GeolocationModule) return;
+    if (!force && window.UserModule && !UserModule.hasLocationConsent()) return;
+    const state = await window.GeolocationModule.getPermissionState();
+    if (state === 'granted') {
+      this.updateGpsStatus(true);
+      return;
+    }
+    this.openLocationModal(state);
+  },
+
+  openLocationModal(state) {
+    if (!this.dom.locationModal) return;
+    const denied = state === 'denied';
+    if (this.dom.locationModalBody) {
+      this.dom.locationModalBody.innerHTML = denied
+        ? '<p class="sheet-sub">A localização está <strong>bloqueada</strong> neste navegador. Abra as configurações do navegador/celular, permita o acesso à localização para este site e toque em "Já liberei".</p>' +
+          '<p class="sheet-sub" style="color:var(--text-muted); font-size:0.82rem;">No iPhone: Ajustes › Safari › Localização. No Android: toque no cadeado ao lado do endereço › Permissões.</p>'
+        : '<p class="sheet-sub">A localização é o que permite o socorro chegar exatamente até você. Usamos <strong>apenas no momento do acionamento</strong> — nada de rastreamento contínuo.</p>' +
+          '<p class="sheet-sub" style="color:var(--text-muted); font-size:0.82rem;">Ao tocar no botão abaixo, o seu celular vai pedir a confirmação de acesso à localização.</p>';
+    }
+    if (this.dom.btnEnableLocation) {
+      this.dom.btnEnableLocation.textContent = denied ? '🔁 Já liberei, tentar de novo' : '📍 Permitir localização agora';
+    }
+    this.openModal('locationModal');
+  },
+
+  // Chamado num toque real da usuária — é isso que faz o navegador (iOS) mostrar o pedido
+  async requestLocationFromGesture() {
+    this.closeModal('locationModal');
+    if (!window.GeolocationModule) return;
+    if (window.UserModule && UserModule.recordConsent && !UserModule.hasLocationConsent()) {
+      UserModule.recordConsent('location', true);
+    }
+    await this.updateGpsStatus(true);
   },
 
   // ==========================================
@@ -506,8 +587,11 @@ const AppController = {
     if (this.dom.countdownNumber) this.dom.countdownNumber.textContent = this.countdownSeconds;
     if (this.dom.countdownOverlay) this.dom.countdownOverlay.classList.add('active');
 
-    // Pré-carrega o GPS em background para o disparo imediato
-    if (window.GeolocationModule) window.GeolocationModule.getCurrentLocation();
+    // Pré-carrega o GPS em background e passa a observar a posição (toque = gesto válido p/ permissão)
+    if (window.GeolocationModule) {
+      window.GeolocationModule.getCurrentLocation();
+      window.GeolocationModule.startWatching();
+    }
 
     this.countdownInterval = setInterval(() => {
       this.countdownSeconds--;
@@ -611,6 +695,9 @@ const AppController = {
     } catch (e) {
       window.location.href = whatsappUrl;
     }
+
+    // Encerra a observação do GPS (já usamos a melhor leitura disponível)
+    if (window.GeolocationModule) window.GeolocationModule.stopWatching();
   },
 
   // ==========================================

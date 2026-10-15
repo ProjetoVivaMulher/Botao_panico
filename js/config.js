@@ -28,6 +28,8 @@ window.APP_CONFIG = (function () {
     SOCORRO_PHONE,
     SOCORRO_NAME: 'Central Viva Mulher (Socorro)',
     RECONFIRM_DAYS: 45,
-    REQUEST_TIMEOUT_MS: 8000
+    REQUEST_TIMEOUT_MS: 8000,
+    // Versão do Termo de Uso e LGPD aceito pela usuária (guarda junto ao consentimento)
+    CONSENT_VERSION: '1.0'
   };
 })();

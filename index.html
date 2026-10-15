@@ -6,9 +6,9 @@
   <title>Viva Mulher - Botão de Pânico Saquarema</title>
   <meta name="description" content="Aplicativo de Botão de Pânico do Projeto Viva Mulher - Prefeitura de Saquarema. Baixe e instale na sua tela inicial.">
   <meta name="theme-color" content="#0f172a">
-  <link rel="manifest" href="manifest.json?v=115">
-  <link rel="icon" href="assets/icon-192.png?v=115">
-  <link rel="stylesheet" href="css/styles.css?v=115">
+  <link rel="manifest" href="manifest.json?v=116">
+  <link rel="icon" href="assets/icon-192.png?v=116">
+  <link rel="stylesheet" href="css/styles.css?v=116">
 </head>
 <body>
 
@@ -17,7 +17,7 @@
     <!-- HEADER COM O LOGO OFICIAL -->
     <header class="app-header">
       <div class="brand">
-        <img src="assets/logo.png?v=115" alt="Viva Mulher Saquarema" class="brand-logo-img">
+        <img src="assets/logo.png?v=116" alt="Viva Mulher Saquarema" class="brand-logo-img">
         <div>
           <h1 class="brand-title">Viva Mulher</h1>
           <span class="brand-subtitle">Prefeitura de Saquarema</span>
@@ -56,7 +56,7 @@
 
       <!-- BANNER DE MARCA E INSTALAÇÃO DO APLICATIVO -->
       <section class="brand-hero-card">
-        <img src="assets/logo.png?v=115" alt="Logo Viva Mulher Saquarema" class="hero-logo-large">
+        <img src="assets/logo.png?v=116" alt="Logo Viva Mulher Saquarema" class="hero-logo-large">
         <div class="hero-brand-info">
           <h2>Botão de Pânico de Emergência</h2>
           <p>Disparo imediato de socorro com geolocalização e áudio para a Central de Atendimento.</p>
@@ -72,6 +72,7 @@
             <div id="locationStatusSub" class="status-sub">Aguardando coordenadas de emergência</div>
           </div>
         </div>
+        <button id="btnActivateLocation" class="btn-refresh-loc" style="display:none;">📍 Ativar GPS</button>
         <button id="btnRefreshLoc" class="btn-refresh-loc">🔄 Atualizar</button>
       </section>
 
@@ -231,7 +232,7 @@
         </label>
         <label class="consent-line">
           <input type="checkbox" id="regConsentLocation">
-          <span>Autorizo o compartilhamento da minha localização no momento do socorro.</span>
+          <span>Autorizo o compartilhamento da minha localização no momento do socorro. Estou ciente de que, em risco à minha vida, a localização poderá ser usada para viabilizar o socorro.</span>
         </label>
 
         <div id="regError" class="form-error" style="display:none;"></div>
@@ -239,6 +240,19 @@
       </form>
 
       <button id="btnSkipOnboarding" class="btn-link-muted">Agora não — continuar sem cadastro</button>
+    </div>
+  </div>
+
+  <!-- MODAL: ATIVAR LOCALIZAÇÃO (permissão do navegador, precisa de toque no iOS) -->
+  <div id="locationModal" class="countdown-overlay">
+    <div class="sheet-modal" style="max-width:420px;">
+      <div class="sheet-head">
+        <span class="sheet-emoji">📍</span>
+        <h3>Ativar localização</h3>
+      </div>
+      <div id="locationModalBody"></div>
+      <button id="btnEnableLocation" class="btn-primary">📍 Permitir localização agora</button>
+      <button id="btnLocationLater" class="btn-link-muted">Agora não</button>
     </div>
   </div>
 
@@ -269,8 +283,8 @@
       </div>
       <div class="lgpd-term">
         <p><strong>1. Finalidade.</strong> Este aplicativo é um recurso comunitário de apoio à emergência. Os dados coletados servem exclusivamente para identificar a usuária e enviar o pedido de socorro aos contatos de confiança e à Central de Atendimento.</p>
-        <p><strong>2. Dados coletados.</strong> Nome completo, telefone (WhatsApp) e data de nascimento, informados no cadastro; e a localização aproximada, capturada <u>apenas no momento do acionamento</u>.</p>
-        <p><strong>3. Base legal.</strong> Consentimento da titular (art. 7º, I, da Lei nº 13.709/2018 — LGPD) e legítimo interesse para proteção da vida (art. 7º, VII).</p>
+        <p><strong>2. Dados coletados.</strong> Nome completo, telefone (WhatsApp) e data de nascimento, informados no cadastro; e a localização aproximada, capturada no aparelho <u>apenas no momento do acionamento</u> e enviada somente quando você aciona o socorro. Não há rastreamento contínuo.</p>
+        <p><strong>3. Base legal.</strong> Consentimento da titular (art. 7º, I, da Lei nº 13.709/2018 — LGPD) para o cadastro e o compartilhamento da localização. Em situação de risco à vida ou à incolumidade física, a localização e a mensagem também podem ser tratadas com base na <strong>proteção da vida</strong> (art. 7º, VII, e art. 11, II, "f", da LGPD), mesmo sem consentimento prévio, para viabilizar o socorro.</p>
         <p><strong>4. Compartilhamento.</strong> Não vendemos dados. A localização e a mensagem são compartilhadas somente com os contatos escolhidos pela usuária e com a equipe de atendimento, na medida do necessário ao socorro.</p>
         <p><strong>5. Retenção e exclusão.</strong> Os dados ficam armazenados enquanto o cadastro estiver ativo e podem ser apagados a qualquer momento pelo botão "Apagar meus dados".</p>
         <p><strong>6. Direitos da titular.</strong> Confirmação, acesso, correção e eliminação dos dados, nos termos do art. 18 da LGPD.</p>
@@ -372,18 +386,18 @@
 
   <!-- SCRIPTS -->
   <script>window.VIVA_API_BASE = 'https://botao-panico-viva-mulher.vercel.app';</script>
-  <script src="js/config.js?v=115"></script>
-  <script src="js/api.js?v=115"></script>
-  <script src="js/user.js?v=115"></script>
-  <script src="js/geolocation.js?v=115"></script>
-  <script src="js/accessibility.js?v=115"></script>
-  <script src="js/emergency-message.js?v=115"></script>
-  <script src="js/contacts.js?v=115"></script>
-  <script src="js/camouflage.js?v=115"></script>
-  <script src="js/audio.js?v=115"></script>
-  <script src="js/audio-store.js?v=115"></script>
-  <script src="js/pwa-install.js?v=115"></script>
-  <script src="js/app.js?v=115"></script>
+  <script src="js/config.js?v=116"></script>
+  <script src="js/api.js?v=116"></script>
+  <script src="js/user.js?v=116"></script>
+  <script src="js/geolocation.js?v=116"></script>
+  <script src="js/accessibility.js?v=116"></script>
+  <script src="js/emergency-message.js?v=116"></script>
+  <script src="js/contacts.js?v=116"></script>
+  <script src="js/camouflage.js?v=116"></script>
+  <script src="js/audio.js?v=116"></script>
+  <script src="js/audio-store.js?v=116"></script>
+  <script src="js/pwa-install.js?v=116"></script>
+  <script src="js/app.js?v=116"></script>
 
   <!-- Vercel Web Analytics -->
   <script>

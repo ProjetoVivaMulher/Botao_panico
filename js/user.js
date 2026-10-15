@@ -11,6 +11,7 @@ const UserModule = (function () {
   'use strict';
 
   const KEY = 'viva_mulher_user_profile';
+  const CONSENT_KEY = 'viva_mulher_consents';
 
   function read() {
     try {
@@ -33,9 +34,51 @@ const UserModule = (function () {
   function clear() {
     try {
       localStorage.removeItem(KEY);
+      localStorage.removeItem(CONSENT_KEY);
     } catch (e) {
       /* ignore */
     }
+  }
+
+  function consentVersion() {
+    return (window.APP_CONFIG && window.APP_CONFIG.CONSENT_VERSION) || '1.0';
+  }
+
+  function readConsents() {
+    try {
+      const raw = localStorage.getItem(CONSENT_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function writeConsents(consents) {
+    try {
+      localStorage.setItem(CONSENT_KEY, JSON.stringify(consents));
+    } catch (e) {
+      /* ignore */
+    }
+    return consents;
+  }
+
+  /**
+   * Registra um consentimento localmente, com data/hora e versão do termo.
+   * Vale mesmo sem cadastro ("continuar sem cadastro") e serve como prova (LGPD).
+   */
+  function recordConsent(kind, granted) {
+    const consents = readConsents();
+    consents[kind] = { granted: !!granted, at: new Date().toISOString(), version: consentVersion() };
+    return writeConsents(consents);
+  }
+
+  function localConsent(kind) {
+    const c = readConsents()[kind];
+    return !!(c && c.granted);
+  }
+
+  function getConsents() {
+    return readConsents();
   }
 
   function daysSince(iso) {
@@ -84,12 +127,12 @@ const UserModule = (function () {
 
   function hasConsent() {
     const p = read();
-    return !!(p && p.consentLgpd);
+    return !!(p && p.consentLgpd) || localConsent('lgpd');
   }
 
   function hasLocationConsent() {
     const p = read();
-    return !!(p && p.consentLocation);
+    return !!(p && p.consentLocation) || localConsent('location');
   }
 
   function formatPhone(phone) {
@@ -277,6 +320,9 @@ const UserModule = (function () {
     confirm,
     syncPending,
     updateConsent,
+    recordConsent,
+    localConsent,
+    getConsents,
     remove,
     clear
   };

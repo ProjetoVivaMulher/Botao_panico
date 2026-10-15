@@ -11,7 +11,7 @@ const EmergencyMessageModule = {
     // Verifica se a localização foi encontrada
     const locationText = loc && loc.success
       ? `📍 Localização: ${loc.mapsUrl}`
-      : '📍 Localização não disponível';
+      : '📍 Localização não disponível no aparelho. Se puder, ative a localização/GPS do celular e responda enviando sua posição.';
 
     const nameLine = name ? `👤 Nome: ${name}\n` : '';
 

@@ -7,6 +7,58 @@ const GeolocationModule = {
   currentPosition: null,
   lastKnownGoodPosition: null,
   isFetching: false,
+  watchId: null,
+
+  /**
+   * Estado da PERMISSÃO DO NAVEGADOR (diferente do consentimento LGPD do app).
+   * Retorna 'granted' | 'denied' | 'prompt' | 'unsupported'.
+   */
+  async getPermissionState() {
+    if (!navigator.geolocation) return 'unsupported';
+    if (!navigator.permissions || !navigator.permissions.query) return 'unknown';
+    try {
+      const status = await navigator.permissions.query({ name: 'geolocation' });
+      return status.state; // 'granted' | 'denied' | 'prompt'
+    } catch (e) {
+      return 'unknown';
+    }
+  },
+
+  /**
+   * Observa a posição continuamente durante o socorro (pega a leitura mais precisa / em movimento).
+   */
+  startWatching() {
+    if (!navigator.geolocation || this.watchId != null) return;
+    try {
+      this.watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          const lat = position.coords.latitude.toFixed(6);
+          const lng = position.coords.longitude.toFixed(6);
+          const result = {
+            success: true,
+            lat: lat,
+            lng: lng,
+            accuracy: Math.round(position.coords.accuracy),
+            mapsUrl: `https://maps.google.com/?q=${lat},${lng}`,
+            timestamp: new Date().toISOString()
+          };
+          this.currentPosition = result;
+          this.lastKnownGoodPosition = result;
+        },
+        () => { /* silencioso: o fallback já é tratado em getCurrentLocation */ },
+        { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
+      );
+    } catch (e) {
+      this.watchId = null;
+    }
+  },
+
+  stopWatching() {
+    if (this.watchId != null && navigator.geolocation) {
+      try { navigator.geolocation.clearWatch(this.watchId); } catch (e) { /* ignore */ }
+    }
+    this.watchId = null;
+  },
 
   /**
    * Captura a posição atual com timeout de segurança rígido para nunca travar o fluxo de socorro
