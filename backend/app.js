@@ -11,6 +11,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const os = require('os');
 
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 const { securityHeaders, rateLimiter } = require('./middleware/security');
@@ -66,7 +67,10 @@ app.use('/api/users', rateLimiter({ windowMs: 60 * 1000, max: 40, message: 'Muit
 
 // 5. Servir arquivos de áudio gravados de forma segura
 //    (atenção: na Vercel o disco é efêmero — uploads não persistem entre execuções)
-app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+const uploadsStaticDir = process.env.VERCEL
+  ? path.join(os.tmpdir(), 'viva-mulher-uploads')
+  : path.join(__dirname, 'uploads');
+app.use('/uploads', express.static(uploadsStaticDir, {
   setHeaders: (res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Security-Policy', "default-src 'self'");

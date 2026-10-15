@@ -184,6 +184,24 @@ async function resetFailedAttempts(id) {
   await db.run('UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE id = ?', [id]);
 }
 
+/**
+ * Garante que a usuária tenha um token de acesso opaco (contas antigas podem
+ * não ter). Retorna o token existente ou gera e persiste um novo.
+ */
+async function ensureAccessToken(id) {
+  const row = await findRowById(id);
+  if (!row) return null;
+  if (row.access_token) return row.access_token;
+
+  const token = newToken();
+  await db.run('UPDATE users SET access_token = ?, updated_at = ? WHERE id = ?', [
+    token,
+    new Date().toISOString(),
+    id
+  ]);
+  return token;
+}
+
 module.exports = {
   CONFIRM_INTERVAL_DAYS,
   MAX_FAILED_ATTEMPTS,
@@ -191,6 +209,7 @@ module.exports = {
   findByPhone,
   findById,
   findRowById,
+  ensureAccessToken,
   confirm,
   updateConsent,
   remove,

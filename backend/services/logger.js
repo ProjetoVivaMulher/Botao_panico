@@ -5,8 +5,13 @@
 
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
-const dataDir = path.join(__dirname, '..', 'data');
+// Na Vercel o disco é somente leitura (exceto /tmp).
+const isServerless = Boolean(process.env.VERCEL);
+const dataDir = isServerless
+  ? path.join(os.tmpdir(), 'viva-mulher-data')
+  : path.join(__dirname, '..', 'data');
 const logFile = path.join(dataDir, 'logs.jsonl');
 
 function ensureLogFile() {
@@ -21,10 +26,15 @@ function maskPhone(phone) {
 }
 
 function appendLog(entry) {
-  ensureLogFile();
   const line = JSON.stringify({ ...entry, at: new Date().toISOString() });
-  fs.appendFileSync(logFile, line + '\n', 'utf8');
+  // Sempre vai para o console (capturado pela Vercel); o arquivo é best-effort.
   console.log('[log]', line);
+  try {
+    ensureLogFile();
+    fs.appendFileSync(logFile, line + '\n', 'utf8');
+  } catch (err) {
+    console.warn('[logger] Não foi possível gravar o log em arquivo:', err.message);
+  }
 }
 
 function info(message, meta = {}) {
@@ -58,16 +68,21 @@ function logStatusChange(alertId, fromStatus, toStatus) {
 }
 
 function readAllLogs() {
-  ensureLogFile();
-  const raw = fs.readFileSync(logFile, 'utf8').trim();
-  if (!raw) return [];
-  return raw.split('\n').map((line) => {
-    try {
-      return JSON.parse(line);
-    } catch (e) {
-      return null;
-    }
-  }).filter(Boolean);
+  try {
+    ensureLogFile();
+    const raw = fs.readFileSync(logFile, 'utf8').trim();
+    if (!raw) return [];
+    return raw.split('\n').map((line) => {
+      try {
+        return JSON.parse(line);
+      } catch (e) {
+        return null;
+      }
+    }).filter(Boolean);
+  } catch (err) {
+    console.warn('[logger] Não foi possível ler os logs:', err.message);
+    return [];
+  }
 }
 
 module.exports = {

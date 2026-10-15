@@ -9,10 +9,20 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 
-const uploadDir = path.join(__dirname, '..', 'uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+// Na Vercel o disco é somente leitura (exceto /tmp) — usar diretório temporário.
+const isServerless = Boolean(process.env.VERCEL);
+const uploadDir = isServerless
+  ? path.join(os.tmpdir(), 'viva-mulher-uploads')
+  : path.join(__dirname, '..', 'uploads');
+
+try {
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+} catch (err) {
+  console.warn('[audio] Não foi possível preparar o diretório de uploads:', err.message);
 }
 
 // Configuração de armazenamento com Multer
