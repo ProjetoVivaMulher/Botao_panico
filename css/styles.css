@@ -975,3 +975,267 @@ body {
   animation: screen-flash-pulse 0.3s ease-in-out;
 }
 
+
+/* ==========================================================================
+   Cadastro, LGPD e Privacidade (Viva Mulher v107)
+   ========================================================================== */
+
+/* Banner de perfil (cadastro / reconfirmação) */
+.profile-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(135deg, rgba(232, 62, 140, 0.16) 0%, rgba(13, 148, 136, 0.16) 100%);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+}
+
+.profile-banner-icon {
+  font-size: 1.4rem;
+  flex-shrink: 0;
+}
+
+.profile-banner-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-banner-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.profile-banner-sub {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+  margin-top: 2px;
+}
+
+.profile-banner-btn {
+  flex-shrink: 0;
+  width: auto;
+  height: auto;
+  padding: 8px 14px;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+/* Blocos de privacidade / LGPD */
+.privacy-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.privacy-text {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.privacy-warning {
+  margin-top: 12px;
+  font-size: 0.8rem;
+  color: var(--text-main);
+  line-height: 1.5;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+}
+
+.privacy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* Seção recolhível (LGPD / privacidade) */
+.privacy-section > summary {
+  list-style: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.privacy-section > summary::-webkit-details-marker {
+  display: none;
+}
+
+.privacy-section > summary:focus-visible {
+  outline: 2px solid var(--color-viva-pink);
+  outline-offset: 4px;
+  border-radius: var(--radius-sm);
+}
+
+.summary-chevron {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+
+.privacy-section[open] .summary-chevron {
+  transform: rotate(180deg);
+}
+
+.privacy-section:not([open]) .privacy-content {
+  display: none;
+}
+
+.privacy-section[open] .privacy-content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.btn-sm-action.active {
+  background: rgba(13, 148, 136, 0.22);
+  border-color: var(--color-viva-teal);
+  color: #5eead4;
+}
+
+/* Modal em formato de folha (cadastro / reconfirmação / LGPD) */
+.sheet-modal {
+  background: var(--bg-card-solid);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  padding: 22px;
+  max-width: 420px;
+  width: 100%;
+  max-height: 88vh;
+  overflow-y: auto;
+  text-align: left;
+  animation: sheet-up 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes sheet-up {
+  from { transform: translateY(16px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.sheet-head h3 {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.sheet-emoji {
+  font-size: 1.4rem;
+}
+
+.sheet-sub {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-bottom: 14px;
+}
+
+.sheet-modal .add-contact-form {
+  margin-bottom: 12px;
+}
+
+/* Consentimento (checkbox + link) */
+.consent-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+  margin: 4px 0;
+  user-select: text;
+}
+
+.consent-line input[type="checkbox"] {
+  margin-top: 2px;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-viva-pink);
+  flex-shrink: 0;
+}
+
+.link-inline {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #ff7ebb;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.btn-link-muted {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--text-subtle);
+  font-size: 0.8rem;
+  padding: 10px;
+  margin-top: 6px;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.btn-link-muted:hover {
+  color: var(--text-main);
+}
+
+.form-error {
+  display: none;
+  background: rgba(239, 68, 68, 0.14);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+  font-size: 0.78rem;
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  margin: 4px 0 8px;
+  line-height: 1.4;
+}
+
+.reconfirm-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.reconfirm-summary strong {
+  color: var(--text-main);
+}
+
+.lgpd-term {
+  user-select: text;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.55;
+  max-height: 52vh;
+  overflow-y: auto;
+  padding-right: 4px;
+  margin-bottom: 14px;
+}
+
+.lgpd-term p {
+  margin-bottom: 10px;
+}
+
+.lgpd-term strong {
+  color: var(--text-main);
+}

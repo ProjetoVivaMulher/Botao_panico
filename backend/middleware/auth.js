@@ -14,6 +14,7 @@
  */
 
 const crypto = require('crypto');
+const db = require('../db/database');
 
 function safeCompare(a, b) {
   if (typeof a !== 'string' || typeof b !== 'string') return false;
@@ -65,4 +66,32 @@ function requireBasicAuth(req, res, next) {
   return res.status(401).json({ success: false, error: 'Credenciais inválidas.' });
 }
 
-module.exports = { requireBasicAuth };
+/**
+ * requireUserToken — protege rotas de uma usuária específica.
+ *
+ * Exige o header `x-user-token` contendo o token opaco gerado no cadastro/login.
+ * Compara com o token guardado no banco para o :id da rota (tempo constante).
+ * Impede que alguém leia/altere/apague dados apenas adivinhando o id.
+ */
+async function requireUserToken(req, res, next) {
+  try {
+    const token = req.headers['x-user-token'];
+    const id = req.params.id;
+
+    if (!token || !id) {
+      return res.status(401).json({ success: false, error: 'Acesso não autorizado.' });
+    }
+
+    const row = await db.get('SELECT id, access_token FROM users WHERE id = ?', [id]);
+    if (!row || !row.access_token || !safeCompare(String(token), row.access_token)) {
+      return res.status(401).json({ success: false, error: 'Acesso não autorizado.' });
+    }
+
+    req.userId = id;
+    return next();
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Falha ao validar acesso.' });
+  }
+}
+
+module.exports = { requireBasicAuth, requireUserToken };

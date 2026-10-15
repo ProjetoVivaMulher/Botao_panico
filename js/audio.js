@@ -132,6 +132,8 @@ const AudioModule = {
       this.stream = null;
     }
   }
+};
+
 // Exportação compatível com Node.js e Navegador
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = AudioModule;

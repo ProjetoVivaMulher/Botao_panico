@@ -20,8 +20,10 @@ const ContactsModule = {
       console.error("[ContactsModule] Erro ao ler contatos:", e);
     }
     // Retorna contatos padrão se não houver cadastrados
+    const socorro = (window.APP_CONFIG && window.APP_CONFIG.SOCORRO_PHONE) || '552139553874';
+    const socorroName = (window.APP_CONFIG && window.APP_CONFIG.SOCORRO_NAME) || 'Central Viva Mulher (Socorro)';
     return [
-      { id: 'default-1', name: 'Central Viva Mulher (Socorro)', phone: '552139553874', isDefault: true }
+      { id: 'default-1', name: socorroName, phone: socorro, isDefault: true }
     ];
   },
 

@@ -1,59 +1,100 @@
 /**
  * Viva Mulher - Botão de Pânico
  * Rota API: /api/contacts
- * Gestão de contatos de emergência do usuário
+ * Gestão de contatos de emergência (banco libSQL/SQLite).
  */
 
 const express = require('express');
 const router = express.Router();
-const { createJsonStore } = require('../db/jsonStore');
+const db = require('../db/database');
 const { requireFields } = require('../middleware/validate');
+const { normalizePhone, newId } = require('../services/validators');
 
-const store = createJsonStore('contacts.json');
+// Contato padrão da Central (PROVISÓRIO — ajuste em DEFAULT_SOCORRO_PHONE no .env)
+const DEFAULT_SOCORRO_PHONE = process.env.DEFAULT_SOCORRO_PHONE || '552139553874';
 
-// GET /api/contacts - Listar contatos
-router.get('/', (req, res) => {
-  const contacts = store.readAll();
-  if (contacts.length === 0) {
-    // Retorna contato padrão inicial
-    const defaultContact = [{ id: 'default-1', name: 'Central Viva Mulher (Socorro)', phone: '552139553874', isDefault: true }];
-    return res.json(defaultContact);
+const DEFAULT_CONTACT = {
+  id: 'default-1',
+  name: 'Central Viva Mulher (Socorro)',
+  phone: DEFAULT_SOCORRO_PHONE,
+  isDefault: true
+};
+
+function rowToContact(row) {
+  return {
+    id: row.id,
+    user_id: row.user_id,
+    name: row.name,
+    phone: row.phone,
+    isDefault: !!row.is_default,
+    createdAt: row.created_at
+  };
+}
+
+// GET /api/contacts - Listar contatos (opcionalmente por usuária)
+router.get('/', async (req, res, next) => {
+  try {
+    const { user_id } = req.query;
+    const rows = user_id
+      ? await db.all('SELECT * FROM contacts WHERE user_id = ? ORDER BY created_at ASC', [user_id])
+      : await db.all('SELECT * FROM contacts ORDER BY created_at ASC');
+
+    if (rows.length === 0) {
+      return res.json([DEFAULT_CONTACT]);
+    }
+    return res.json(rows.map(rowToContact));
+  } catch (error) {
+    next(error);
   }
-  res.json(contacts);
 });
 
 // POST /api/contacts - Cadastrar novo contato
-router.post('/', requireFields(['name', 'phone']), (req, res) => {
-  const { name, phone } = req.body;
-  const contacts = store.readAll();
+router.post('/', requireFields(['name', 'phone']), async (req, res, next) => {
+  try {
+    const { name, phone, user_id } = req.body;
+    const normalized = normalizePhone(phone);
 
-  const newContact = {
-    id: 'contact-' + Date.now(),
-    name: name.trim(),
-    phone: String(phone).replace(/\D/g, ''),
-    isDefault: false,
-    created_at: new Date().toISOString()
-  };
+    if (!normalized) {
+      return res.status(422).json({ success: false, error: 'Telefone inválido.' });
+    }
 
-  contacts.push(newContact);
-  store.writeAll(contacts);
+    const contact = {
+      id: newId('contact'),
+      user_id: user_id || null,
+      name: String(name).trim().slice(0, 80),
+      phone: normalized,
+      is_default: 0,
+      created_at: new Date().toISOString()
+    };
 
-  res.status(201).json(newContact);
+    await db.run(
+      `INSERT INTO contacts (id, user_id, name, phone, is_default, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [contact.id, contact.user_id, contact.name, contact.phone, contact.is_default, contact.created_at]
+    );
+
+    return res.status(201).json(rowToContact({
+      id: contact.id, user_id: contact.user_id, name: contact.name,
+      phone: contact.phone, is_default: contact.is_default, created_at: contact.created_at
+    }));
+  } catch (error) {
+    next(error);
+  }
 });
 
 // DELETE /api/contacts/:id - Remover contato
-router.delete('/:id', (req, res) => {
-  const { id } = req.params;
-  let contacts = store.readAll();
-  const initialLength = contacts.length;
-  contacts = contacts.filter(c => c.id !== id);
-
-  if (contacts.length === initialLength) {
-    return res.status(404).json({ error: 'Contato não encontrado' });
+router.delete('/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const existing = await db.get('SELECT id FROM contacts WHERE id = ?', [id]);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Contato não encontrado.' });
+    }
+    await db.run('DELETE FROM contacts WHERE id = ?', [id]);
+    return res.json({ success: true, message: 'Contato removido com sucesso.' });
+  } catch (error) {
+    next(error);
   }
-
-  store.writeAll(contacts);
-  res.json({ success: true, message: 'Contato removido com sucesso' });
 });
 
 module.exports = router;

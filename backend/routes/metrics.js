@@ -10,8 +10,13 @@ const router = express.Router();
 const { requireBasicAuth } = require('../middleware/auth');
 const { computeMetrics } = require('../services/metricsService');
 
-router.get('/', requireBasicAuth, (req, res) => {
-  res.json({ success: true, data: computeMetrics() });
+router.get('/', requireBasicAuth, async (req, res, next) => {
+  try {
+    const data = await computeMetrics();
+    res.json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
 });
 
 module.exports = router;

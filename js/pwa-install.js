@@ -45,7 +45,6 @@ const PwaInstallModule = {
   },
 
   bindInstallEvents() {
-    const installBtn = document.getElementById('btnInstallPwa');
     const headerInstallBtn = document.getElementById('btnHeaderInstall');
     const modal = document.getElementById('pwaInstallModal');
     const closeModalBtn = document.getElementById('btnCloseInstallModal');
@@ -54,20 +53,18 @@ const PwaInstallModule = {
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
       this.deferredPrompt = e;
-      
-      // Exibir botões de instalação
-      if (installBtn) installBtn.style.display = 'flex';
+
+      // Exibir botão de instalação
       if (headerInstallBtn) headerInstallBtn.style.display = 'flex';
     });
 
-    // Clique nos botões de instalação
+    // Clique no botão de instalação
     const handleInstallClick = () => {
       if (this.deferredPrompt) {
         this.deferredPrompt.prompt();
         this.deferredPrompt.userChoice.then((choiceResult) => {
           if (choiceResult.outcome === 'accepted') {
             console.log('[PWA] Usuária aceitou a instalação do aplicativo.');
-            if (installBtn) installBtn.style.display = 'none';
             if (headerInstallBtn) headerInstallBtn.style.display = 'none';
           }
           this.deferredPrompt = null;
@@ -78,7 +75,6 @@ const PwaInstallModule = {
       }
     };
 
-    if (installBtn) installBtn.addEventListener('click', handleInstallClick);
     if (headerInstallBtn) headerInstallBtn.addEventListener('click', handleInstallClick);
     if (closeModalBtn && modal) {
       closeModalBtn.addEventListener('click', () => modal.classList.remove('active'));
@@ -87,7 +83,6 @@ const PwaInstallModule = {
     // Se o app já estiver rodando instalado (standalone)
     window.addEventListener('appinstalled', () => {
       console.log('[PWA] Aplicativo instalado na tela inicial com sucesso!');
-      if (installBtn) installBtn.style.display = 'none';
       if (headerInstallBtn) headerInstallBtn.style.display = 'none';
       if (window.AppController && window.AppController.showToast) {
         window.AppController.showToast('✅ Viva Mulher instalado no celular!');

@@ -3,11 +3,14 @@
  * Service Worker para suporte a PWA e funcionamento offline resiliente
  */
 
-const CACHE_NAME = 'viva-mulher-v106';
+const CACHE_NAME = 'viva-mulher-v110';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './css/styles.css',
+  './js/config.js',
+  './js/api.js',
+  './js/user.js',
   './js/geolocation.js',
   './js/accessibility.js',
   './js/emergency-message.js',
@@ -50,15 +53,17 @@ self.addEventListener('activate', (event) => {
 
 // Estratégia Stale-While-Revalidate para garantir app atualizado e offline funcional
 self.addEventListener('fetch', (event) => {
-  // Ignora requisições de API, analytics ou outros domínios
-  if (!event.request.url.startsWith(self.location.origin) && !event.request.url.startsWith('http')) {
-    return;
-  }
+  // Só trata requisições GET do próprio app (ignora API, analytics e outros domínios)
+  if (event.request.method !== 'GET') return;
+  if (event.request.url.includes('/api/')) return;
 
-  // Não faz cache de chamadas POST ou endpoints de API
-  if (event.request.method !== 'GET' || event.request.url.includes('/api/')) {
+  let sameOrigin = false;
+  try {
+    sameOrigin = new URL(event.request.url).origin === self.location.origin;
+  } catch (e) {
     return;
   }
+  if (!sameOrigin) return;
 
   event.respondWith(
     caches.open(CACHE_NAME).then(async (cache) => {

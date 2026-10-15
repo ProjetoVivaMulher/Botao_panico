@@ -9,7 +9,19 @@ const CamouflageModule = {
   operation: null,
   shouldResetDisplay: false,
   inputHistory: '',
-  secretCode: '7777',
+  defaultSecretCode: '7777',
+
+  /**
+   * Código para sair do modo disfarce:
+   * usa o PIN definido no cadastro; se não houver, cai no padrão 7777.
+   */
+  getSecretCode() {
+    if (window.UserModule && typeof window.UserModule.getPin === 'function') {
+      const pin = window.UserModule.getPin();
+      if (pin) return String(pin);
+    }
+    return this.defaultSecretCode;
+  },
 
   init() {
     this.screen = document.getElementById('camouflageScreen');
@@ -82,7 +94,7 @@ const CamouflageModule = {
     // Buffer de segurança para destravamento secreto
     if (val >= '0' && val <= '9') {
       this.inputHistory = (this.inputHistory + val).slice(-10); // Mantém apenas os últimos 10 dígitos
-      if (this.inputHistory.endsWith(this.secretCode)) {
+      if (this.inputHistory.endsWith(this.getSecretCode())) {
         this.deactivate();
         return;
       }

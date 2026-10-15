@@ -13,7 +13,7 @@ Armazenamento atual: arquivo `backend/data/alerts.json` (lista de objetos), via 
 | `mapsUrl` | string \| null | Link do Google Maps já pronto, gerado pelo frontend. |
 | `targetPhone` | string | Número de WhatsApp de destino do disparo (não é dado de identidade da vítima). |
 | `mensagem` | string \| null | Texto da mensagem de emergência enviada. |
-| `status` | string | Um de: `disparado`, `em_atendimento`, `encerrado`, `cancelado`. |
+| `status` | string | Um de: `active`, `assigned`, `en_route`, `arrived`, `resolved`, `cancelled` (ver máquina de estados abaixo). |
 | `created_at` | string (ISO 8601) | Quando o chamado foi criado. |
 | `updated_at` | string (ISO 8601) | Última atualização. |
 | `status_history` | array de `{status, at}` | Histórico de mudanças de status, usado para calcular T1/T2/T3. |
@@ -21,21 +21,22 @@ Armazenamento atual: arquivo `backend/data/alerts.json` (lista de objetos), via 
 ## Máquina de estados
 
 ```
-disparado ──▶ em_atendimento ──▶ encerrado
-    │                │
-    └──▶ cancelado ◀─┘
+active ──▶ assigned ──▶ en_route ──▶ arrived ──▶ resolved
+   │           │            │            │
+   └──────────-┴────────────┴────────────┴──▶ cancelled
 ```
 
-Transições válidas: `disparado → em_atendimento`, `em_atendimento → encerrado`, `disparado → cancelado`, `em_atendimento → cancelado`. Qualquer outra transição é rejeitada pela API (ver `backend/services/statusTransitions.js`, de responsabilidade do Gabriel).
+Transições válidas (fonte da verdade: `backend/services/statusTransitions.js`):
+`active → assigned`, `active → cancelled`, `assigned → en_route`, `assigned → cancelled`,
+`en_route → arrived`, `en_route → cancelled`, `arrived → resolved`, `arrived → cancelled`.
+Qualquer outra transição é rejeitada pela API com HTTP 422.
 
 ## Métricas de tempo (T1, T2, T3)
 
-Calculadas a partir de `status_history` (responsabilidade do Gabriel/Everaldo):
-- **T1** = tempo entre `disparado` e `em_atendimento`.
-- **T2** = tempo entre `em_atendimento` e `encerrado`.
-- **T3** = tempo total, entre `disparado` e `encerrado`.
-
-Esses três nomes vieram do PDF de regras do grupo, mas o significado exato de cada um não estava detalhado ali — esta é uma interpretação razoável. **Confirmem com a orientadora se é isso mesmo que o relatório espera antes de considerar fechado.**
+Calculadas a partir de `alert.timings` (preenchidos por `computeTimings` durante as transições):
+- **T1** = `active` → `assigned` (`dispatch_delay_seconds`).
+- **T2** = `assigned` → `arrived` (`response_time_seconds`).
+- **T3** = `active` → `resolved` (`total_resolution_seconds`).
 
 ## Dados pessoais
 

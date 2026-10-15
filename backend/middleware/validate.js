@@ -35,6 +35,10 @@ function validateCoordinates(req, res, next) {
       });
     }
   }
+
+  next();
+}
+
 // Prevenção de Prototype Pollution e Sanitização básica de Strings
 function sanitizeObject(obj) {
   if (!obj || typeof obj !== 'object') return obj;

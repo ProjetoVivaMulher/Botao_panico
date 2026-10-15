@@ -6,12 +6,14 @@
 const EmergencyMessageModule = {
 
   // Monta a mensagem que será enviada no pedido de ajuda
-  buildMessage({ eventId, dateFormatted, timeFormatted, loc, isSilent }) {
+  buildMessage({ eventId, dateFormatted, timeFormatted, loc, isSilent, name }) {
 
     // Verifica se a localização foi encontrada
     const locationText = loc && loc.success
       ? `📍 Localização: ${loc.mapsUrl}`
       : '📍 Localização não disponível';
+
+    const nameLine = name ? `👤 Nome: ${name}\n` : '';
 
     const silentWarning = isSilent
       ? `\n⚠️ ATENÇÃO: A VÍTIMA NÃO PODE FALAR / COMUNICAR-SE VERBALMENTE. NÃO LIGUE, ENVIE SOCORRO IMEDIATO OU RESPONDA POR MENSAGEM!\n`
@@ -21,7 +23,7 @@ const EmergencyMessageModule = {
     return `🚨 ALERTA DE EMERGÊNCIA - VIVA MULHER 🚨
 ${silentWarning}
 Preciso de ajuda!
-
+${nameLine}
 📅 Data: ${dateFormatted}
 🕐 Horário: ${timeFormatted}
 🆔 Evento: ${eventId}

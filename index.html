@@ -6,9 +6,9 @@
   <title>Viva Mulher - Botão de Pânico Saquarema</title>
   <meta name="description" content="Aplicativo de Botão de Pânico do Projeto Viva Mulher - Prefeitura de Saquarema. Baixe e instale na sua tela inicial.">
   <meta name="theme-color" content="#0f172a">
-  <link rel="manifest" href="manifest.json?v=102">
-  <link rel="icon" href="assets/icon-192.png?v=102">
-  <link rel="stylesheet" href="css/styles.css?v=102">
+  <link rel="manifest" href="manifest.json?v=110">
+  <link rel="icon" href="assets/icon-192.png?v=110">
+  <link rel="stylesheet" href="css/styles.css?v=110">
 </head>
 <body>
 
@@ -17,7 +17,7 @@
     <!-- HEADER COM O LOGO OFICIAL -->
     <header class="app-header">
       <div class="brand">
-        <img src="assets/logo.png?v=102" alt="Viva Mulher Saquarema" class="brand-logo-img">
+        <img src="assets/logo.png?v=110" alt="Viva Mulher Saquarema" class="brand-logo-img">
         <div>
           <h1 class="brand-title">Viva Mulher</h1>
           <span class="brand-subtitle">Prefeitura de Saquarema</span>
@@ -44,15 +44,22 @@
         </div>
       </section>
 
+      <!-- BANNER DE PERFIL: cadastro único / reconfirmação (NUNCA bloqueia o pânico) -->
+      <section id="profileBanner" class="profile-banner" style="display:none;">
+        <div class="profile-banner-icon" id="profileBannerIcon">👤</div>
+        <div class="profile-banner-body">
+          <div id="profileBannerTitle" class="profile-banner-title">Complete seu cadastro</div>
+          <div id="profileBannerSub" class="profile-banner-sub">Leva menos de 1 minuto e garante um socorro mais rápido.</div>
+        </div>
+        <button id="profileBannerBtn" class="btn-primary profile-banner-btn">Cadastrar</button>
+      </section>
+
       <!-- BANNER DE MARCA E INSTALAÇÃO DO APLICATIVO -->
       <section class="brand-hero-card">
-        <img src="assets/logo.png?v=102" alt="Logo Viva Mulher Saquarema" class="hero-logo-large">
+        <img src="assets/logo.png?v=110" alt="Logo Viva Mulher Saquarema" class="hero-logo-large">
         <div class="hero-brand-info">
           <h2>Botão de Pânico de Emergência</h2>
           <p>Disparo imediato de socorro com geolocalização e áudio para a Central de Atendimento.</p>
-          <button id="btnInstallPwa" class="btn-install-main">
-            <span>📲</span> Baixar e Instalar no Celular
-          </button>
         </div>
       </section>
 
@@ -159,38 +166,113 @@
         </button>
       </section>
 
+      <!-- PRIVACIDADE, LGPD E COMPARTILHAMENTO DE LOCALIZAÇÃO (recolhível) -->
+      <details class="card-section privacy-section" id="privacySection">
+        <summary class="section-header privacy-summary">
+          <h2 class="section-title">
+            <i>⚖️</i> Privacidade, LGPD e Localização
+          </h2>
+          <span class="summary-chevron" aria-hidden="true">▾</span>
+        </summary>
+
+        <div class="privacy-content">
+          <div class="privacy-block">
+            <p class="privacy-text">
+              <strong>Quem trata seus dados:</strong> projeto de extensão <em>Viva Mulher</em> (Prefeitura de Saquarema). O controlador responsável pela proteção de dados é indicado pela instituição.
+            </p>
+            <p class="privacy-text">
+              <strong>Quais dados e para quê:</strong> nome completo, telefone e data de nascimento são usados apenas para identificar você e enviar o alerta de socorro. <u>Não vendemos nem compartilhamos seus dados publicamente.</u>
+            </p>
+            <p class="privacy-text">
+              <strong>Seus direitos (LGPD):</strong> você pode confirmar, corrigir ou apagar seus dados a qualquer momento, pelo botão "Apagar meus dados" abaixo.
+            </p>
+          </div>
+
+          <div class="privacy-warning" role="alert">
+            📍 <strong>Informe sobre compartilhamento de localização:</strong> ao acionar o botão de pânico, sua localização aproximada é capturada e incluída na mensagem enviada aos contatos de confiança e à Central de Atendimento. O rastreamento ocorre <u>somente no momento do disparo</u> — não monitoramos você continuamente. Você pode recusar a localização, mas o socorro fica menos preciso.
+          </div>
+
+          <div class="privacy-actions">
+            <button id="btnOpenLgpd" class="btn-sm-action">📄 Ler termo completo</button>
+            <button id="btnToggleLocationConsent" class="btn-sm-action" aria-pressed="false">📍 Compartilhar localização: —</button>
+            <button id="btnDeleteData" class="btn-sm-action delete">🗑️ Apagar meus dados (LGPD)</button>
+          </div>
+        </div>
+      </details>
+
     </main>
 
   </div>
 
-  <!-- MODAL DE CONSENTIMENTO LGPD (SEGURANÇA & PRIVACIDADE) -->
-  <div id="lgpdConsentModal" class="countdown-overlay">
-    <div style="background:var(--bg-card-solid); border:1px solid var(--border-card); border-radius:18px; padding:24px; max-width:390px; width:100%; text-align:left;">
-      <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
-        <span style="font-size:1.4rem;">⚖️</span>
-        <h3 style="font-size:1.15rem; font-weight:800; color:white;">Termo de Uso & LGPD</h3>
+  <!-- MODAL DE CADASTRO ÚNICO (ONBOARDING) -->
+  <div id="onboardingModal" class="countdown-overlay">
+    <div class="sheet-modal">
+      <div class="sheet-head">
+        <span class="sheet-emoji">🛡️</span>
+        <h3>Cadastro único</h3>
       </div>
-      
-      <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:12px; line-height:1.5;">
-        Para sua proteção em emergências, este aplicativo precisa do seu consentimento para as seguintes finalidades:
+      <p class="sheet-sub">
+        Faça o cadastro uma vez. Depois é só acionar o socorro em um toque. Você pode pular e usar o app mesmo assim.
       </p>
 
-      <div style="display:flex; flex-direction:column; gap:8px; font-size:0.8rem; color:var(--text-main); margin-bottom:16px;">
-        <div style="background:rgba(255,255,255,0.04); padding:10px; border-radius:8px; border-left:3px solid var(--color-viva-teal);">
-          📍 <strong>Geolocalização:</strong> Captura sua localização estimada no momento do clique para envio direto ao seu contato.
-        </div>
-        <div style="background:rgba(255,255,255,0.04); padding:10px; border-radius:8px; border-left:3px solid var(--color-viva-pink);">
-          🎙️ <strong>Áudio de Evidência:</strong> Grava até 15 segundos do som ambiente para salvaguarda no histórico do seu aparelho.
-        </div>
-        <div style="background:rgba(255,255,255,0.04); padding:10px; border-radius:8px; border-left:3px solid var(--color-warning);">
-          🔒 <strong>Privacidade:</strong> Nenhum dado é vendido ou compartilhado publicamente. Você pode apagar seus registros locais a qualquer momento.
-        </div>
-      </div>
+      <form id="registerForm" class="add-contact-form">
+        <input id="regFullName" class="input-field" type="text" placeholder="Nome completo (ex.: Maria da Silva)" autocomplete="name" required>
+        <input id="regPhone" class="input-field" type="tel" placeholder="Telefone / WhatsApp com DDD (ex.: 21 99999-9999)" autocomplete="tel" required>
+        <input id="regBirthDate" class="input-field" type="text" placeholder="Data de nascimento (DD/MM/AAAA)" inputmode="numeric" required>
+        <input id="regPin" class="input-field" type="password" placeholder="PIN de 4 a 6 dígitos (sai do disfarce e confirma o cadastro)" inputmode="numeric">
 
-      <div style="display:flex; gap:10px;">
-        <button id="btnCancelConsent" class="btn-cancel-panic" style="flex:1; padding:10px; font-size:0.85rem;">Agora Não</button>
-        <button id="btnAcceptConsent" class="btn-primary" style="flex:1.5; padding:10px; font-size:0.85rem;">Concordo e Autorizo</button>
+        <label class="consent-line">
+          <input type="checkbox" id="regConsentLgpd">
+          <span>Li e aceito o <button type="button" id="linkLgpdInline" class="link-inline">Termo de Uso e LGPD</button>.</span>
+        </label>
+        <label class="consent-line">
+          <input type="checkbox" id="regConsentLocation">
+          <span>Autorizo o compartilhamento da minha localização no momento do socorro.</span>
+        </label>
+
+        <div id="regError" class="form-error" style="display:none;"></div>
+        <button type="submit" class="btn-primary" id="regSubmit">Salvar cadastro</button>
+      </form>
+
+      <button id="btnSkipOnboarding" class="btn-link-muted">Agora não — continuar sem cadastro</button>
+    </div>
+  </div>
+
+  <!-- MODAL DE RECONFIRMAÇÃO PERIÓDICA (45 DIAS) -->
+  <div id="reconfirmModal" class="countdown-overlay">
+    <div class="sheet-modal">
+      <div class="sheet-head">
+        <span class="sheet-emoji">🔄</span>
+        <h3>Confirme seus dados</h3>
       </div>
+      <p class="sheet-sub">
+        Para manter seu cadastro ativo (reconfirmação a cada 45 dias). Isso <strong>não</strong> bloqueia o botão de pânico.
+      </p>
+      <div id="reconfirmSummary" class="reconfirm-summary"></div>
+      <input id="reconfirmPin" class="input-field" type="password" placeholder="PIN (se você cadastrou um)" inputmode="numeric">
+      <div id="reconfirmError" class="form-error" style="display:none;"></div>
+      <button id="btnReconfirm" class="btn-primary">Confirmar agora</button>
+      <button id="btnReconfirmLater" class="btn-link-muted">Depois</button>
+    </div>
+  </div>
+
+  <!-- MODAL DO TERMO COMPLETO (LGPD) -->
+  <div id="lgpdModal" class="countdown-overlay">
+    <div class="sheet-modal" style="max-width:440px;">
+      <div class="sheet-head">
+        <span class="sheet-emoji">⚖️</span>
+        <h3>Termo de Uso e LGPD</h3>
+      </div>
+      <div class="lgpd-term">
+        <p><strong>1. Finalidade.</strong> Este aplicativo é um recurso comunitário de apoio à emergência. Os dados coletados servem exclusivamente para identificar a usuária e enviar o pedido de socorro aos contatos de confiança e à Central de Atendimento.</p>
+        <p><strong>2. Dados coletados.</strong> Nome completo, telefone (WhatsApp) e data de nascimento, informados no cadastro; e a localização aproximada, capturada <u>apenas no momento do acionamento</u>.</p>
+        <p><strong>3. Base legal.</strong> Consentimento da titular (art. 7º, I, da Lei nº 13.709/2018 — LGPD) e legítimo interesse para proteção da vida (art. 7º, VII).</p>
+        <p><strong>4. Compartilhamento.</strong> Não vendemos dados. A localização e a mensagem são compartilhadas somente com os contatos escolhidos pela usuária e com a equipe de atendimento, na medida do necessário ao socorro.</p>
+        <p><strong>5. Retenção e exclusão.</strong> Os dados ficam armazenados enquanto o cadastro estiver ativo e podem ser apagados a qualquer momento pelo botão "Apagar meus dados".</p>
+        <p><strong>6. Direitos da titular.</strong> Confirmação, acesso, correção e eliminação dos dados, nos termos do art. 18 da LGPD.</p>
+        <p><strong>7. Aviso.</strong> Este app não substitui os canais oficiais. Em risco iminente, ligue 190 ou 180.</p>
+      </div>
+      <button id="btnCloseLgpd" class="btn-primary">Entendi</button>
     </div>
   </div>
 
@@ -229,8 +311,8 @@
     <button id="btnCancelPanic" class="btn-cancel-panic">✖ CANCELAR DISPARO</button>
   </div>
 
-  <!-- TELA CAMUFLADA (MODO CALCULADORA DE PROTEÇÃO - PIN 7777) -->
-  <div id="camouflageScreen" class="camouflage-screen" data-pin="7777">
+  <!-- TELA CAMUFLADA (MODO CALCULADORA DE PROTEÇÃO - PIN do cadastro; padrão 7777) -->
+  <div id="camouflageScreen" class="camouflage-screen">
     <div class="calc-display">
       <div id="calcPrev" class="calc-prev"></div>
       <div id="calcCurrent" class="calc-current">0</div>
@@ -285,14 +367,17 @@
   </script>
 
   <!-- SCRIPTS -->
-  <script src="js/geolocation.js?v=106"></script>
-  <script src="js/accessibility.js?v=106"></script>
-  <script src="js/emergency-message.js?v=106"></script>
-  <script src="js/contacts.js?v=106"></script>
-  <script src="js/camouflage.js?v=106"></script>
-  <script src="js/audio.js?v=106"></script>
-  <script src="js/pwa-install.js?v=106"></script>
-  <script src="js/app.js?v=106"></script>
+  <script src="js/config.js?v=110"></script>
+  <script src="js/api.js?v=110"></script>
+  <script src="js/user.js?v=110"></script>
+  <script src="js/geolocation.js?v=110"></script>
+  <script src="js/accessibility.js?v=110"></script>
+  <script src="js/emergency-message.js?v=110"></script>
+  <script src="js/contacts.js?v=110"></script>
+  <script src="js/camouflage.js?v=110"></script>
+  <script src="js/audio.js?v=110"></script>
+  <script src="js/pwa-install.js?v=110"></script>
+  <script src="js/app.js?v=110"></script>
 
   <!-- Vercel Web Analytics -->
   <script>

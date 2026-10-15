@@ -1,17 +1,30 @@
 /**
  * Viva Mulher - Botão de Pânico
- * "Migração" reproduzível: prepara o armazenamento de chamados num ambiente novo.
+ * Migração reproduzível: prepara o banco (libSQL/SQLite) num ambiente novo.
  *
  * Como rodar (a partir da pasta backend/):
  *   node migrations/init.js
  *
- * Isso cria backend/data/alerts.json (vazio, [] ) se ainda não existir.
- * Rodar de novo em um ambiente que já tem dados NÃO apaga nada.
+ * Local: cria/atualiza backend/data/viva_mulher.db (abre normal no Letos/SQLiteStudio).
+ * Turso: usa TURSO_DATABASE_URL + TURSO_AUTH_TOKEN do ambiente.
+ * Rodar de novo NÃO apaga dados (usa CREATE TABLE IF NOT EXISTS).
  */
 
-const { createJsonStore } = require('../db/jsonStore');
+// Carrega backend/.env (TURSO_DATABASE_URL, TURSO_AUTH_TOKEN, etc.) ANTES de
+// abrir o banco — as variáveis precisam estar prontas quando o cliente conecta.
+require('dotenv').config();
 
-const store = createJsonStore('alerts.json');
-store.ensureStoreExists();
+const { ensureSchema } = require('../db/schema');
+const db = require('../db/database');
 
-console.log(`[migrations/init] Armazenamento de chamados pronto em: ${store.filePath}`);
+async function main() {
+  await ensureSchema();
+  console.log(`[migrations/init] Banco pronto (${db.mode}).`);
+  console.log(`[migrations/init] Local: ${db.location}`);
+  console.log('[migrations/init] Tabelas: users, contacts, alerts.');
+}
+
+main().catch((err) => {
+  console.error('[migrations/init] Falha ao preparar o banco:', err);
+  process.exit(1);
+});
