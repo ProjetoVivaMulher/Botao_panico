@@ -150,6 +150,38 @@ const AppController = {
       : '✅ Cadastro concluído. Obrigada!');
   },
 
+  // Máscara DD/MM/AAAA: insere as barras automaticamente e mantém o cursor no lugar
+  applyDateMask(input) {
+    const el = input;
+    if (!el) return;
+    const digitsBeforeCaret = el.value.slice(0, el.selectionStart || 0).replace(/\D/g, '').length;
+    const digits = el.value.replace(/\D/g, '').slice(0, 8);
+
+    let out = '';
+    for (let i = 0; i < digits.length; i++) {
+      if (i === 2 || i === 4) out += '/';
+      out += digits[i];
+    }
+    el.value = out;
+
+    let caret;
+    if (digitsBeforeCaret <= 0) {
+      caret = 0;
+    } else if (digitsBeforeCaret >= digits.length) {
+      caret = out.length;
+    } else {
+      let seen = 0;
+      caret = out.length;
+      for (let i = 0; i < out.length; i++) {
+        if (/\d/.test(out[i])) {
+          seen++;
+          if (seen === digitsBeforeCaret) { caret = i + 1; break; }
+        }
+      }
+    }
+    try { el.setSelectionRange(caret, caret); } catch (_) { /* ignore */ }
+  },
+
   showReconfirm() {
     const profile = window.UserModule ? UserModule.getProfile() : null;
     if (!profile) {
@@ -368,6 +400,7 @@ const AppController = {
     // Perfil / cadastro
     on(this.dom.profileBannerBtn, 'click', () => this.handleProfileBannerClick());
     on(this.dom.registerForm, 'submit', (e) => this.handleRegister(e));
+    on(this.dom.regBirthDate, 'input', (e) => this.applyDateMask(e.target));
     on(this.dom.btnSkipOnboarding, 'click', () => {
       localStorage.setItem(STORAGE_KEY_SKIP_ONBOARDING, 'true');
       this.closeModal('onboardingModal');
