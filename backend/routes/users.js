@@ -20,7 +20,7 @@ const { requireUserToken } = require('../middleware/auth');
 // POST /api/users - Cadastro único (público)
 router.post('/', async (req, res, next) => {
   try {
-    const { fullName, phone, birthDate, pin, consentLgpd, consentLocation } = req.body || {};
+    const { fullName, phone, birthDate, pin, consentLgpd, consentLocation, selfDeclaredWoman } = req.body || {};
 
     if (!isValidFullName(fullName)) {
       return res.status(422).json({
@@ -49,6 +49,13 @@ router.post('/', async (req, res, next) => {
       });
     }
 
+    if (!selfDeclaredWoman) {
+      return res.status(422).json({
+        success: false,
+        error: 'Este é um espaço de apoio a mulheres. É necessário declarar que você se identifica como mulher.'
+      });
+    }
+
     if (pin != null && String(pin).length > 0 && !/^\d{4,6}$/.test(String(pin))) {
       return res.status(422).json({
         success: false,
@@ -70,7 +77,8 @@ router.post('/', async (req, res, next) => {
       birthDate: birth.iso,
       pin: pin ? String(pin) : null,
       consentLgpd: !!consentLgpd,
-      consentLocation: !!consentLocation
+      consentLocation: !!consentLocation,
+      selfDeclaredWoman: !!selfDeclaredWoman
     });
 
     logger.info('Usuária cadastrada', { userId: user.id });

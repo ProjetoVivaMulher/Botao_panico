@@ -55,6 +55,7 @@ const UserModule = (function () {
       hasPin: !!user.hasPin,
       consentLgpd: !!user.consentLgpd,
       consentLocation: !!user.consentLocation,
+      selfDeclaredWoman: !!user.selfDeclaredWoman,
       lastConfirmedAt: user.lastConfirmedAt || new Date().toISOString(),
       unsynced: false
     };
@@ -117,8 +118,8 @@ const UserModule = (function () {
    * Cadastro único. Se o servidor estiver fora do ar, salva localmente como
    * pendente de sincronização (o pânico continua funcionando).
    */
-  async function register({ fullName, phone, birthDate, pin, consentLgpd, consentLocation }) {
-    const payload = { fullName, phone, birthDate, pin: pin || null, consentLgpd, consentLocation };
+  async function register({ fullName, phone, birthDate, pin, consentLgpd, consentLocation, selfDeclaredWoman }) {
+    const payload = { fullName, phone, birthDate, pin: pin || null, consentLgpd, consentLocation, selfDeclaredWoman: !!selfDeclaredWoman };
     const res = await Api.post('/api/users', payload);
 
     if (res.ok && res.data && res.data.user) {
@@ -150,6 +151,7 @@ const UserModule = (function () {
           hasPin: !!pin,
           consentLgpd: !!consentLgpd,
           consentLocation: !!consentLocation,
+          selfDeclaredWoman: !!selfDeclaredWoman,
           lastConfirmedAt: new Date().toISOString(),
           unsynced: true
         })
@@ -179,7 +181,8 @@ const UserModule = (function () {
     if (p.unsynced) {
       return register({
         fullName: p.fullName, phone: p.phone, birthDate: p.birthDate,
-        pin: pin || null, consentLgpd: p.consentLgpd, consentLocation: p.consentLocation
+        pin: pin || null, consentLgpd: p.consentLgpd, consentLocation: p.consentLocation,
+        selfDeclaredWoman: p.selfDeclaredWoman
       });
     }
 
@@ -208,7 +211,8 @@ const UserModule = (function () {
     }
     const res = await register({
       fullName: p.fullName, phone: p.phone, birthDate: p.birthDate,
-      pin: null, consentLgpd: p.consentLgpd, consentLocation: p.consentLocation
+      pin: null, consentLgpd: p.consentLgpd, consentLocation: p.consentLocation,
+      selfDeclaredWoman: p.selfDeclaredWoman
     });
     return !!res.ok && !res.offline;
   }

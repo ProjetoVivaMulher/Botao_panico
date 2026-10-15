@@ -18,6 +18,8 @@ const STATEMENTS = [
     consent_lgpd INTEGER NOT NULL DEFAULT 0,
     consent_location INTEGER NOT NULL DEFAULT 0,
     consent_at TEXT,
+    self_declared_woman INTEGER NOT NULL DEFAULT 0,
+    self_declared_at TEXT,
     active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
@@ -63,6 +65,8 @@ const COLUMN_MIGRATIONS = [
   `ALTER TABLE users ADD COLUMN access_token TEXT`,
   `ALTER TABLE users ADD COLUMN failed_attempts INTEGER NOT NULL DEFAULT 0`,
   `ALTER TABLE users ADD COLUMN locked_until TEXT`,
+  `ALTER TABLE users ADD COLUMN self_declared_woman INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE users ADD COLUMN self_declared_at TEXT`,
   `CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone)`
 ];
 

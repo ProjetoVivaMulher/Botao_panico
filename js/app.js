@@ -115,6 +115,7 @@ const AppController = {
     const pin = this.dom.regPin.value.trim();
     const consentLgpd = this.dom.regConsentLgpd.checked;
     const consentLocation = this.dom.regConsentLocation.checked;
+    const selfDeclaredWoman = this.dom.regSelfDeclared ? this.dom.regSelfDeclared.checked : false;
 
     this.showFormError('regError', '');
 
@@ -133,9 +134,12 @@ const AppController = {
     if (!consentLgpd) {
       return this.showFormError('regError', 'É necessário aceitar o Termo de Uso e LGPD.');
     }
+    if (!selfDeclaredWoman) {
+      return this.showFormError('regError', 'Este é um espaço de apoio a mulheres. Marque a declaração para continuar.');
+    }
 
     this.setSubmitting('regSubmit', true, 'Salvando...');
-    const res = await UserModule.register({ fullName, phone, birthDate, pin, consentLgpd, consentLocation });
+    const res = await UserModule.register({ fullName, phone, birthDate, pin, consentLgpd, consentLocation, selfDeclaredWoman });
     this.setSubmitting('regSubmit', false, 'Salvar cadastro');
 
     if (!res.ok) {
@@ -367,6 +371,7 @@ const AppController = {
       regPhone: document.getElementById('regPhone'),
       regBirthDate: document.getElementById('regBirthDate'),
       regPin: document.getElementById('regPin'),
+      regSelfDeclared: document.getElementById('regSelfDeclared'),
       regConsentLgpd: document.getElementById('regConsentLgpd'),
       regConsentLocation: document.getElementById('regConsentLocation'),
       btnSkipOnboarding: document.getElementById('btnSkipOnboarding'),

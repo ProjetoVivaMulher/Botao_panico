@@ -21,6 +21,8 @@ function rowToUser(row) {
     consentLgpd: !!row.consent_lgpd,
     consentLocation: !!row.consent_location,
     consentAt: row.consent_at,
+    selfDeclaredWoman: !!row.self_declared_woman,
+    selfDeclaredAt: row.self_declared_at,
     active: !!row.active,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -56,7 +58,7 @@ async function findRowById(id) {
  * Gera um token de acesso opaco (guardado só no servidor) usado para
  * autorizar operações sensíveis. Retorna { user, token }.
  */
-async function create({ fullName, phone, birthDate, pin, consentLgpd, consentLocation }) {
+async function create({ fullName, phone, birthDate, pin, consentLgpd, consentLocation, selfDeclaredWoman }) {
   const now = new Date().toISOString();
   const token = newToken();
   const user = {
@@ -69,6 +71,8 @@ async function create({ fullName, phone, birthDate, pin, consentLgpd, consentLoc
     consent_lgpd: consentLgpd ? 1 : 0,
     consent_location: consentLocation ? 1 : 0,
     consent_at: (consentLgpd || consentLocation) ? now : null,
+    self_declared_woman: selfDeclaredWoman ? 1 : 0,
+    self_declared_at: selfDeclaredWoman ? now : null,
     active: 1,
     created_at: now,
     updated_at: now,
@@ -77,11 +81,12 @@ async function create({ fullName, phone, birthDate, pin, consentLgpd, consentLoc
 
   await db.run(
     `INSERT INTO users
-       (id, full_name, phone, birth_date, pin_hash, access_token, consent_lgpd, consent_location, consent_at, active, created_at, updated_at, last_confirmed_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, full_name, phone, birth_date, pin_hash, access_token, consent_lgpd, consent_location, consent_at, self_declared_woman, self_declared_at, active, created_at, updated_at, last_confirmed_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       user.id, user.full_name, user.phone, user.birth_date, user.pin_hash, user.access_token,
       user.consent_lgpd, user.consent_location, user.consent_at,
+      user.self_declared_woman, user.self_declared_at,
       user.active, user.created_at, user.updated_at, user.last_confirmed_at
     ]
   );
