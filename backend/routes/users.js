@@ -56,6 +56,13 @@ router.post('/', async (req, res, next) => {
       });
     }
 
+    if (!consentLocation) {
+      return res.status(422).json({
+        success: false,
+        error: 'É necessário autorizar o compartilhamento da localização no momento do socorro.'
+      });
+    }
+
     if (pin != null && String(pin).length > 0 && !/^\d{4,6}$/.test(String(pin))) {
       return res.status(422).json({
         success: false,

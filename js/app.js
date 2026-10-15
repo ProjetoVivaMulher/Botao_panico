@@ -137,6 +137,9 @@ const AppController = {
     if (!selfDeclaredWoman) {
       return this.showFormError('regError', 'Este é um espaço de apoio a mulheres. Marque a declaração para continuar.');
     }
+    if (!consentLocation) {
+      return this.showFormError('regError', 'É necessário autorizar o compartilhamento da localização no socorro.');
+    }
 
     this.setSubmitting('regSubmit', true, 'Salvando...');
     const res = await UserModule.register({ fullName, phone, birthDate, pin, consentLgpd, consentLocation, selfDeclaredWoman });
@@ -184,6 +187,15 @@ const AppController = {
       }
     }
     try { el.setSelectionRange(caret, caret); } catch (_) { /* ignore */ }
+  },
+
+  // Exige os três consentimentos: Termo/LGPD, autodeclaração e compartilhamento de localização
+  allConsentsChecked() {
+    return !!(
+      this.dom.regConsentLgpd && this.dom.regConsentLgpd.checked &&
+      this.dom.regSelfDeclared && this.dom.regSelfDeclared.checked &&
+      this.dom.regConsentLocation && this.dom.regConsentLocation.checked
+    );
   },
 
   showReconfirm() {
@@ -407,6 +419,9 @@ const AppController = {
     on(this.dom.registerForm, 'submit', (e) => this.handleRegister(e));
     on(this.dom.regBirthDate, 'input', (e) => this.applyDateMask(e.target));
     on(this.dom.btnSkipOnboarding, 'click', () => {
+      if (!this.allConsentsChecked()) {
+        return this.showFormError('regError', 'Para continuar, marque as três opções: aceitar o Termo/LGPD, a declaração e o compartilhamento da localização.');
+      }
       localStorage.setItem(STORAGE_KEY_SKIP_ONBOARDING, 'true');
       this.closeModal('onboardingModal');
       this.showToast('Você pode se cadastrar quando quiser.');
