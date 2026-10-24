@@ -4,7 +4,8 @@
 > **Universidade de Vassouras (FUSVE) — Campus Saquarema**  
 > **Docente Orientadora:** Profª. Laís Cristine Bordallo Pinheiro ([@LaisBordallo](https://github.com/LaisBordallo))
 
-🌐 **Aplicação Online (PWA):** [https://botao-panico-ten.vercel.app/](https://botao-panico-ten.vercel.app/)
+🌐 **Aplicação Online (PWA):** [https://viva-mulher-navy.vercel.app/](https://viva-mulher-navy.vercel.app/)  
+🔌 **API / Backend publicado:** [https://botao-panico-viva-mulher.vercel.app](https://botao-panico-viva-mulher.vercel.app) ([health check](https://botao-panico-viva-mulher.vercel.app/api/health))
 
 ---
 
@@ -13,8 +14,9 @@
 2. [Funcionalidades do Aplicativo](#-funcionalidades-do-aplicativo)
 3. [Segurança, Privacidade & LGPD](#-segurança-privacidade--lgpd)
 4. [Arquitetura & Stack Tecnológica](#-arquitetura--stack-tecnológica)
-5. [Documentos do Projeto & Extensão (P1)](#-documentos-do-projeto--extensão-p1)
-6. [Equipe de Desenvolvimento](#-equipe-de-desenvolvimento)
+5. [Deploy & Links](#-deploy--links)
+6. [Documentos do Projeto & Extensão (P1)](#-documentos-do-projeto--extensão-p1)
+7. [Equipe de Desenvolvimento](#-equipe-de-desenvolvimento)
 
 ---
 
@@ -29,30 +31,54 @@ O **Botão de Pânico Viva Mulher** é um módulo de apoio comunitário e segura
 
 ## 📱 Funcionalidades do Aplicativo
 
-* **Botão de Pânico com Contagem Regressiva:** Disparo em 3 segundos com cancelamento rápido para evitar acionamentos acidentais.
-* **Captura de Geolocalização (GPS):** Coleta automática de alta precisão com geração de link no Google Maps e fallback seguro caso o sinal esteja indisponível.
-* **Mensagem Padronizada:** Formatação de mensagem de socorro com ID único (`EVT-AAAA-MMDD-XXXX`), data, horário e localização para envio via WhatsApp (`wa.me`).
-* **Gravação de Áudio de Evidência:** Gravação de até 15 segundos de som ambiente disparada no acionamento ou manualmente, com player de reprodução integrado no histórico.
-* **Modo Camuflado (Calculadora de Proteção):** Interface disfarçada de calculadora funcional, permitindo retornar ao modo Viva Mulher digitando um código PIN secreto instruído presencialmente na capacitação/oficina.
-* **Canais Diretos de Emergência Pública:** Atalhos nativos de discagem rápida para **190** (Polícia Militar), **180** (Central da Mulher) e **192** (SAMU).
-* **PWA Instalável e Offline:** Suporte a instalação na tela inicial (Android/iOS) e cache offline via Service Worker (`sw.js`).
+* **Disparo em um toque (sem cadastro obrigatório):** o pânico funciona sem login e sem confirmação — um toque aciona o socorro, grava o áudio e abre o WhatsApp. Uma trava de 4 s evita disparo duplo por toque acidental.
+* **Três abas:** **Início** (botão de pânico de 184 px), **Provas** e **Pessoas**. O SOS continua sempre acessível nas abas internas por um botão flutuante.
+* **Envio para pessoa de confiança + Central:** o alerta é registrado no painel da Central (`POST /api/alerts`, funciona até anonimamente) e o WhatsApp abre preenchido para a primeira pessoa de confiança e para a Central.
+* **“Avisar agora” por pessoa:** na aba Pessoas, cada contato tem um botão que monta o alerta real com a localização atual e abre o WhatsApp daquela pessoa.
+* **Documentos e provas (100% local):** fotos, vídeos, arquivos e áudios ficam em IndexedDB no próprio aparelho, com prévia, download, compartilhamento e exclusão. Nada é enviado a servidor.
+* **Áudio de evidência de 15 s:** gravado automaticamente no acionamento (vira prova) ou manualmente na aba Provas.
+* **Captura de Geolocalização (GPS):** permissão pedida por gesto (compatível com iOS), leitura em cache para resposta imediata, link do Google Maps e fallback quando o sinal não está disponível.
+* **Mensagem Padronizada:** identificador único do evento (`EVT-AAAA-MM-DD-NNNN`), data, horário e localização para envio via WhatsApp (`wa.me`).
+* **Modo Camuflado (Calculadora de Proteção):** interface disfarçada de calculadora funcional, com retorno pelo PIN secreto.
+* **Canais Diretos de Emergência Pública:** atalhos nativos de discagem rápida para **190** (Polícia Militar), **180** (Central da Mulher) e **192** (SAMU).
+* **Acessibilidade:** leitor de tela, vibração, sinal luminoso no disparo (para usuárias surdas) e VLibras.
+* **PWA Instalável e Offline:** instalação na tela inicial (Android/iOS), cache via Service Worker (`sw.js`) e registro local que nunca depende de internet.
 
 ---
 
 ## ⚖️ Segurança, Privacidade & LGPD
 
-* **Consentimento Prévio:** Exibição de termo de consentimento explícito (finalidade de localização e áudio) antes do primeiro acionamento.
-* **Armazenamento Local e Descarte:** Histórico e contatos salvos no próprio aparelho (`localStorage`), com botão de limpeza total a qualquer momento.
-* **Proteção contra Injeção (XSS):** Sanitização rigorosa via `escapeHtml()` em todos os campos de texto.
-* **Logs com Anonimização:** Mascaramento de números de telefone e dados sensíveis no backend conforme diretrizes da LGPD.
+* **Consentimento Prévio:** termo explícito (LGPD) para localização e áudio, com base legal de proteção da vida (art. 7º, VII e art. 11, II, “f”), persistido mesmo sem cadastro.
+* **Cadastro nunca bloqueia o socorro:** o pânico funciona sem cadastro, sem login e sem confirmação.
+* **PIN protegido:** o código do modo camuflado é guardado apenas como hash SHA-256 (`pinHash` + `pinLength`), com migração automática de versões antigas.
+* **Armazenamento Local e Descarte:** histórico, provas e pessoas de confiança ficam no próprio aparelho (`localStorage` + IndexedDB), com botão de limpeza total a qualquer momento.
+* **Provas não saem do aparelho:** fotos, vídeos e áudios de evidência não são enviados ao servidor.
+* **Proteção contra Injeção (XSS):** sanitização rigorosa via `escapeHtml()` em todos os campos de texto.
+* **Cabeçalhos de segurança:** CSP, HSTS, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` e `Permissions-Policy` definidos em `vercel.json`.
+* **Logs com Anonimização:** mascaramento de números de telefone e dados sensíveis no backend conforme diretrizes da LGPD.
 
 ---
 
 ## 🛠️ Arquitetura & Stack Tecnológica
 
-* **Frontend:** HTML5, CSS3 Moderno (CSS Variables, Flexbox/Grid), JavaScript Vanilla modular (`geolocation.js`, `emergency-message.js`, `contacts.js`, `camouflage.js`, `audio.js`, `app.js`, `pwa-install.js`).
-* **Backend:** Node.js + Express 4, Multer (upload seguro de áudio com filtro MIME), CORS restrito e repositório JSON local com zero dependências externas.
-* **Hospedagem:** Vercel (Frontend PWA).
+* **Frontend:** HTML5, CSS3 moderno (CSS Variables, Flexbox/Grid) e JavaScript Vanilla modular — `app.js`, `contacts.js`, `geolocation.js`, `emergency-message.js`, `evidence.js` / `evidence-store.js` (IndexedDB), `audio.js` / `audio-store.js`, `camouflage.js`, `accessibility.js`, `pwa-install.js`.
+* **Backend:** Node.js + Express 4, com **libSQL/Turso** (`@libsql/client`) — mesmo dialeto SQLite em produção e em desenvolvimento (`backend/data/viva_mulher.db`). Rotas para chamados, pessoas/contatos, usuárias, áudio e métricas; CORS por allowlist, rate limit e validação de entrada.
+* **Banco de dados:** Turso (região São Paulo), com tabelas `alerts`, `contacts` e `users`; credenciais só nas variáveis de ambiente (`TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN`).
+* **Hospedagem:** Vercel — PWA em [viva-mulher-navy.vercel.app](https://viva-mulher-navy.vercel.app/) e API em [botao-panico-viva-mulher.vercel.app](https://botao-panico-viva-mulher.vercel.app) (deploy automático a partir da branch `main`).
+
+---
+
+## 🚀 Deploy & Links
+
+| O que | Link | Projeto Vercel | Root Directory |
+| :--- | :--- | :--- | :--- |
+| **PWA (app)** | https://viva-mulher-navy.vercel.app/ | `viva-mulher` | raiz do repositório |
+| **API (backend)** | https://botao-panico-viva-mulher.vercel.app | `botao-panico-viva-mulher` | `backend` |
+
+* **PWA:** `vercel deploy --prod` na raiz (só o app vai no upload — `backend/`, `docs/` e arquivos `.md` são ignorados por `.vercelignore`). O projeto também está conectado ao GitHub e publica a cada push na `main`.
+* **API:** deploy automático a partir da `main`. As variáveis `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `DEFAULT_SOCORRO_PHONE`, `ALLOWED_ORIGINS`, `ADMIN_USER` e `ADMIN_PASSWORD` ficam na Vercel (nunca no repositório).
+* **O front aponta para a API** via `window.VIVA_API_BASE` no `<head>` do `index.html`.
+* ⚠️ O endereço antigo `botao-panico-ten.vercel.app` pertence a outra conta Vercel e **não recebe mais as atualizações** — use o link acima.
 
 ---
 

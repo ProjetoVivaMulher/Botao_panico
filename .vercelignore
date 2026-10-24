@@ -1,0 +1,8 @@
+# Só o PWA (raiz) vai para a Vercel — o backend tem projeto próprio em backend/.
+backend
+frontend
+docs
+.github
+node_modules
+*.md
+!README.md
