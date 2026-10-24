@@ -537,6 +537,12 @@ const AppController = {
         this.updateGpsStatus();
         return;
       }
+      if (state === 'denied') {
+        this.showLocationNeedsActivation('denied');
+        return;
+      }
+      // iOS/Safari não expõe a Permissions API: o estado chega como 'prompt'
+      // e o pedido do sistema só pode ser feito no toque da usuária.
       const consented = window.UserModule && UserModule.hasLocationConsent();
       if (consented && !this.locationWasAsked()) {
         this.openLocationModal(state);
@@ -544,7 +550,7 @@ const AppController = {
         this.showLocationNeedsActivation(state);
       }
     }).catch(() => {
-      this.showLocationNeedsActivation('unknown');
+      this.showLocationNeedsActivation('prompt');
     });
   },
 
@@ -556,51 +562,114 @@ const AppController = {
     try { localStorage.setItem(STORAGE_KEY_LOCATION_ASKED, 'true'); } catch (e) { /* ignore */ }
   },
 
-  async updateGpsStatus(userInitiated = false) {
-    if (!this.dom.locationStatusDot || !window.GeolocationModule) return;
+  // Mensagens de "como liberar" adaptadas ao aparelho (não existe Permissions API no iOS).
+  isIOSDevice() {
+    const ua = navigator.userAgent || '';
+    const iOS = /iPad|iPhone|iPod/.test(ua) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    return iOS;
+  },
 
-    const state = await window.GeolocationModule.getPermissionState();
-    if (state !== 'granted') {
-      this.showLocationNeedsActivation(state);
+  isStandaloneApp() {
+    return window.navigator.standalone === true ||
+      (typeof window.matchMedia === 'function' && window.matchMedia('(display-mode: standalone)').matches);
+  },
+
+  locationHelpText() {
+    if (this.isIOSDevice()) {
+      return this.isStandaloneApp()
+        ? 'No iPhone, com o app instalado: Ajustes › Privacidade e Segurança › Localização › Viva Mulher › marque "Ao Usar o App".'
+        : 'No iPhone (Safari): toque em "Aa" na barra de endereço › Configurações do Site › Localização › Permitir. Ou em Ajustes › Privacidade e Segurança › Localização › Safari › "Ao Usar o App".';
+    }
+    return 'No Android (Chrome): toque no cadeado ao lado do endereço › Permissões › Localização › Permitir.';
+  },
+
+  setGpsChecking() {
+    if (this.dom.locationStatusDot) this.dom.locationStatusDot.className = 'status-dot';
+    if (this.dom.locationStatusText) this.dom.locationStatusText.textContent = 'Verificando localização…';
+    if (this.dom.locationStatusSub) this.dom.locationStatusSub.textContent = 'Buscando sinal de GPS';
+    const action = this.dom.btnRequestLocation;
+    if (action) {
+      action.hidden = true;
+      action.dataset.state = 'checking';
+      action.textContent = 'Ativar';
+    }
+  },
+
+  applyLocationResult(loc, userInitiated = false) {
+    const result = loc || {};
+    if (!this.dom.locationStatusDot) return;
+
+    if (result.success) {
+      this.dom.locationStatusDot.className = 'status-dot active';
+      if (this.dom.locationStatusText) this.dom.locationStatusText.textContent = 'Localização ativa';
+      if (this.dom.locationStatusSub) {
+        this.dom.locationStatusSub.textContent = `Precisão de aproximadamente ${result.accuracy} m`;
+      }
+      if (this.dom.btnRequestLocation) {
+        this.dom.btnRequestLocation.hidden = true;
+        this.dom.btnRequestLocation.dataset.state = 'granted';
+      }
+      if (userInitiated) this.showToast('📍 Localização ativada. Você está mais protegida.');
+      return;
+    }
+
+    if (result.permissionDenied) {
+      this.showLocationNeedsActivation('denied');
+      if (userInitiated) this.showToast('🔒 A localização está bloqueada neste navegador.');
       return;
     }
 
     this.dom.locationStatusDot.className = 'status-dot';
-    this.dom.locationStatusText.textContent = 'Verificando localização…';
-    this.dom.locationStatusSub.textContent = 'Buscando sinal de GPS';
-
-    const loc = await window.GeolocationModule.getCurrentLocation();
-
-    if (loc && loc.success) {
-      this.dom.locationStatusDot.className = 'status-dot active';
-      this.dom.locationStatusText.textContent = 'Localização ativa';
-      this.dom.locationStatusSub.textContent = `Precisão de aproximadamente ${loc.accuracy} m`;
-      if (this.dom.btnRequestLocation) this.dom.btnRequestLocation.hidden = true;
-      if (userInitiated) this.showToast('📍 Localização ativada. Você está mais protegida.');
-    } else {
-      this.dom.locationStatusDot.className = 'status-dot';
-      this.dom.locationStatusText.textContent = 'Localização indisponível';
-      this.dom.locationStatusSub.textContent = 'O socorro continua funcionando. Se puder, ative o GPS do celular.';
-      if (this.dom.btnRequestLocation) {
-        this.dom.btnRequestLocation.hidden = false;
-        this.dom.btnRequestLocation.dataset.state = 'granted';
-        this.dom.btnRequestLocation.textContent = 'Tentar';
-      }
-      if (userInitiated) this.showToast('⚠️ Não foi possível obter o GPS agora.');
+    if (this.dom.locationStatusText) this.dom.locationStatusText.textContent = 'Localização indisponível';
+    if (this.dom.locationStatusSub) {
+      this.dom.locationStatusSub.textContent = 'O socorro continua funcionando. Se puder, ligue o GPS do celular e toque em "Tentar".';
     }
+    const action = this.dom.btnRequestLocation;
+    if (action) {
+      action.hidden = false;
+      action.dataset.state = 'prompt';
+      action.textContent = 'Tentar';
+    }
+    if (userInitiated) this.showToast('⚠️ Não foi possível obter o GPS agora.');
+  },
+
+  async updateGpsStatus(userInitiated = false) {
+    if (!this.dom.locationStatusDot || !window.GeolocationModule) return;
+
+    const state = await window.GeolocationModule.getPermissionState();
+
+    if (state === 'unsupported') {
+      this.showLocationNeedsActivation('unsupported');
+      return;
+    }
+    if (state === 'denied') {
+      this.showLocationNeedsActivation('denied');
+      return;
+    }
+
+    // 'prompt' (caso do iPhone, que não tem Permissions API) não é bloqueio:
+    // tentamos a leitura e o próprio sistema mostra o pedido de permissão.
+    this.setGpsChecking();
+    const loc = await window.GeolocationModule.getCurrentLocation(15000);
+    this.applyLocationResult(loc, userInitiated);
   },
 
   showLocationNeedsActivation(state) {
     if (this.dom.locationStatusDot) this.dom.locationStatusDot.className = 'status-dot';
-    if (this.dom.locationStatusText) this.dom.locationStatusText.textContent = 'Localização desativada';
+    if (this.dom.locationStatusText) {
+      this.dom.locationStatusText.textContent = state === 'unsupported'
+        ? 'Localização não suportada'
+        : 'Localização desativada';
+    }
     if (this.dom.locationStatusSub) {
       this.dom.locationStatusSub.textContent = state === 'denied'
-        ? 'Permissão bloqueada no navegador. Você pode liberar nas configurações do celular.'
+        ? 'Permissão bloqueada no navegador. Toque em "Como liberar" para ver o caminho no seu aparelho.'
         : 'Ative a localização para um socorro mais preciso.';
     }
     const action = this.dom.btnRequestLocation;
     if (action) {
-      action.dataset.state = state || 'unknown';
+      action.dataset.state = state || 'prompt';
       action.hidden = state === 'unsupported';
       action.textContent = state === 'denied' ? 'Como liberar' : 'Ativar';
     }
@@ -609,11 +678,11 @@ const AppController = {
   handleRequestLocationClick() {
     const action = this.dom.btnRequestLocation;
     const state = action ? action.dataset.state : '';
+    if (state === 'unsupported') return;
     if (state === 'denied') {
-      this.showToast('A localização está bloqueada. Libere o acesso nas configurações do navegador.');
+      this.openLocationModal('denied');
       return;
     }
-    if (state === 'unsupported') return;
     this.requestLocationFromGesture();
   },
 
@@ -634,10 +703,10 @@ const AppController = {
     const denied = state === 'denied';
     if (this.dom.locationModalBody) {
       this.dom.locationModalBody.innerHTML = denied
-        ? '<p class="sheet-sub">A localização está <strong>bloqueada</strong> neste navegador. Abra as configurações do celular, permita o acesso à localização para este site e toque em "Já liberei".</p>' +
-          '<p class="sheet-sub">No iPhone: Ajustes › Safari › Localização. No Android: cadeado ao lado do endereço › Permissões.</p>'
+        ? '<p class="sheet-sub">A localização está <strong>bloqueada</strong> neste navegador. Libere o acesso nas configurações e volte aqui.</p>' +
+          `<p class="sheet-sub">${this.escapeHtml(this.locationHelpText())}</p>`
         : '<p class="sheet-sub">Sua localização ajuda o socorro a chegar até você. Ela é usada <strong>apenas quando você aciona o botão de pânico</strong> — não há rastreamento contínuo.</p>' +
-          '<p class="sheet-sub">Ao tocar abaixo, o celular vai pedir a confirmação de acesso à localização.</p>';
+          '<p class="sheet-sub">Ao tocar abaixo, o celular vai pedir a confirmação de acesso à localização. Toque em <strong>Permitir</strong>.</p>';
     }
     if (this.dom.btnEnableLocation) {
       this.dom.btnEnableLocation.textContent = denied ? 'Já liberei, tentar de novo' : 'Permitir localização';
@@ -645,18 +714,28 @@ const AppController = {
     this.openModal('locationModal');
   },
 
-  // Chamado num toque real da usuária — é isso que faz o navegador (iOS) mostrar o pedido
-  async requestLocationFromGesture() {
+  // Chamado num toque real da usuária. No iOS o pedido de permissão só aparece se
+  // `getCurrentPosition` for chamado ainda dentro do gesto — por isso não existe
+  // nenhum `await` antes da chamada do GPS aqui.
+  requestLocationFromGesture() {
     this.markLocationAsked();
     this.closeModal('locationModal');
-    if (!window.GeolocationModule) return;
+
+    const geo = window.GeolocationModule;
+    if (!geo) return;
+
     if (window.UserModule && UserModule.recordConsent && !UserModule.hasLocationConsent()) {
       UserModule.recordConsent('location', true);
     }
     if (window.UserModule && typeof UserModule.updateConsent === 'function') {
       UserModule.updateConsent({ consentLocation: true }).catch(() => {});
     }
-    await this.updateGpsStatus(true);
+
+    this.setGpsChecking();
+
+    geo.getCurrentLocation(15000)
+      .then((loc) => this.applyLocationResult(loc, true))
+      .catch(() => this.applyLocationResult({ success: false }, true));
   },
 
   dismissLocationPrompt() {
@@ -664,9 +743,13 @@ const AppController = {
     this.closeModal('locationModal');
     if (window.GeolocationModule) {
       window.GeolocationModule.getPermissionState().then((state) => {
+        if (state === 'granted') {
+          this.updateGpsStatus();
+          return;
+        }
         this.showLocationNeedsActivation(state);
       }).catch(() => {
-        this.showLocationNeedsActivation('unknown');
+        this.showLocationNeedsActivation('prompt');
       });
     }
   },

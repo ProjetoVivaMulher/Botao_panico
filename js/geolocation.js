@@ -15,12 +15,17 @@ const GeolocationModule = {
    */
   async getPermissionState() {
     if (!navigator.geolocation) return 'unsupported';
-    if (!navigator.permissions || !navigator.permissions.query) return 'unknown';
+    if (!navigator.permissions || !navigator.permissions.query) {
+      // Safari/iOS não implementa a Permissions API para geolocalização.
+      // "prompt" mantém o botão "Ativar" funcional: o pedido do sistema só
+      // aparece quando a usuária toca (dentro do gesto).
+      return 'prompt';
+    }
     try {
       const status = await navigator.permissions.query({ name: 'geolocation' });
       return status.state; // 'granted' | 'denied' | 'prompt'
     } catch (e) {
-      return 'unknown';
+      return 'prompt';
     }
   },
 
@@ -61,92 +66,103 @@ const GeolocationModule = {
   },
 
   /**
-   * Captura a posição atual com timeout de segurança rígido para nunca travar o fluxo de socorro
-   * @param {number} maxWaitMs Tempo máximo de espera antes do fallback (padrão 6000ms = 6s)
+   * Captura a posição atual com timeout de segurança para nunca travar o socorro.
+   * Importante no iOS: o pedido de permissão só aparece se esta chamada partir
+   * de um toque da usuária — por isso ela precisa ser feita direto no clique,
+   * sem awaits antes.
+   * @param {number} maxWaitMs Tempo máximo de espera antes do fallback (padrão 12000ms)
    * @returns {Promise<Object>}
    */
-  async getCurrentLocation(maxWaitMs = 6000) {
+  async getCurrentLocation(maxWaitMs = 12000) {
+    if (!navigator.geolocation) {
+      return this.getFallbackData('Geolocalização não suportada pelo navegador.');
+    }
+
     if (this.isFetching && this.currentPosition) {
       return this.currentPosition;
     }
 
     this.isFetching = true;
 
-    // Timeout de segurança com fallback garantido
-    const timeoutPromise = new Promise((resolve) => {
-      setTimeout(() => {
-        if (this.lastKnownGoodPosition) {
-          console.warn("[GeolocationModule] GPS timeout. Usando última posição conhecida.");
-          resolve(this.lastKnownGoodPosition);
-        } else {
-          resolve(this.getFallbackData("Tempo limite para obter localização excedido."));
-        }
-      }, maxWaitMs);
-    });
+    return new Promise((resolve) => {
+      let settled = false;
+      let timer = null;
 
-    const gpsPromise = new Promise((resolve) => {
-      if (!navigator.geolocation) {
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
         this.isFetching = false;
-        resolve(this.getFallbackData("Geolocalização não suportada pelo navegador."));
-        return;
-      }
-
-      const options = {
-        enableHighAccuracy: true,
-        timeout: maxWaitMs - 500,
-        maximumAge: 30000 // Aceita posição em cache de até 30 segundos
+        if (timer) clearTimeout(timer);
+        resolve(value);
       };
 
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          this.isFetching = false;
-          const lat = position.coords.latitude.toFixed(6);
-          const lng = position.coords.longitude.toFixed(6);
-          const accuracy = Math.round(position.coords.accuracy);
+      // Rede de segurança: o socorro nunca fica esperando o GPS.
+      timer = setTimeout(() => {
+        if (this.lastKnownGoodPosition) {
+          console.warn("[GeolocationModule] GPS timeout. Usando última posição conhecida.");
+          finish(this.lastKnownGoodPosition);
+        } else {
+          finish(this.getFallbackData("Tempo limite para obter localização excedido."));
+        }
+      }, Math.max(maxWaitMs, 1000));
 
-          const result = {
-            success: true,
-            lat: lat,
-            lng: lng,
-            accuracy: accuracy,
-            mapsUrl: `https://maps.google.com/?q=${lat},${lng}`,
-            timestamp: new Date().toISOString()
-          };
+      try {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const lat = position.coords.latitude.toFixed(6);
+            const lng = position.coords.longitude.toFixed(6);
+            const accuracy = Math.round(position.coords.accuracy);
 
-          this.currentPosition = result;
-          this.lastKnownGoodPosition = result;
-          resolve(result);
-        },
-        (error) => {
-          this.isFetching = false;
-          let errorMessage = "Erro ao obter localização.";
+            const result = {
+              success: true,
+              lat: lat,
+              lng: lng,
+              accuracy: accuracy,
+              mapsUrl: `https://maps.google.com/?q=${lat},${lng}`,
+              timestamp: new Date().toISOString()
+            };
 
-          switch (error.code) {
-            case error.PERMISSION_DENIED:
+            this.currentPosition = result;
+            this.lastKnownGoodPosition = result;
+            finish(result);
+          },
+          (error) => {
+            let errorMessage = "Erro ao obter localização.";
+            const code = error && error.code;
+            let denied = false;
+
+            if (code === 1) {
               errorMessage = "Permissão de localização negada pela usuária.";
-              break;
-
-            case error.POSITION_UNAVAILABLE:
+              denied = true;
+            } else if (code === 2) {
               errorMessage = "Sinal de GPS indisponível no momento.";
-              break;
-
-            case error.TIMEOUT:
+            } else if (code === 3) {
               errorMessage = "Tempo limite para obter localização excedido.";
-              break;
-          }
+            }
 
-          if (this.lastKnownGoodPosition) {
-            resolve(this.lastKnownGoodPosition);
-          } else {
-            resolve(this.getFallbackData(errorMessage));
-          }
-        },
-        options
-      );
-    });
+            // Permissão negada agora: devolver a última posição conhecida esconderia
+            // o bloqueio e a usuária nunca saberia que precisa liberar o acesso.
+            if (denied) {
+              this.currentPosition = null;
+              finish(Object.assign(this.getFallbackData(errorMessage), { permissionDenied: true }));
+              return;
+            }
 
-    return Promise.race([gpsPromise, timeoutPromise]).finally(() => {
-      this.isFetching = false;
+            finish(this.lastKnownGoodPosition || this.getFallbackData(errorMessage));
+          },
+          {
+            enableHighAccuracy: true,
+            // O timeout do sistema é maior que a nossa rede de segurança: assim
+            // o iOS tem tempo de mostrar o pedido de permissão e responder.
+            timeout: Math.max(maxWaitMs + 5000, 15000),
+            // Sem cache na primeira leitura: no iPhone o cache costuma vir vazio
+            // ou muito antigo, o que atrapalha a permissão.
+            maximumAge: 0
+          }
+        );
+      } catch (e) {
+        finish(this.getFallbackData("Não foi possível iniciar a localização."));
+      }
     });
   },
 
