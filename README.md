@@ -85,4 +85,5 @@ O **Botão de Pânico Viva Mulher** é um módulo de apoio comunitário e segura
 | **Matheus Fernando** | [@Math3usF](https://github.com/Math3usF) | Persistência & Modelagem de Chamados |
 | **Gabriel Suede** | [@gabbsuede-ship-it](https://github.com/gabbsuede-ship-it) | Rotas de Chamados & Transições de Status |
 | **Everaldo Serafim** | [@EveraldoSerafim](https://github.com/EveraldoSerafim) | Monitoramento, Métricas & Logs |
+| **Leandro Bravo** | [@LeoBravoDev](https://github.com/LeoBravoDev) | Correções Finais & Integração (Backend + Frontend) |
 | **Profª. Laís Bordallo** | [@LaisBordallo](https://github.com/LaisBordallo) | Docente Orientadora (PE III) |
