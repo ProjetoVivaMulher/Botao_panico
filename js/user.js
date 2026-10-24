@@ -13,6 +13,24 @@ const UserModule = (function () {
   const KEY = 'viva_mulher_user_profile';
   const CONSENT_KEY = 'viva_mulher_consents';
 
+  // Guarda o PIN apenas como hash (nunca em texto puro no aparelho).
+  async function hashPin(pin) {
+    const value = 'viva-mulher:' + String(pin);
+    if (window.crypto && window.crypto.subtle && typeof TextEncoder !== 'undefined') {
+      try {
+        const digest = await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+        return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
+      } catch (e) { /* usa o fallback abaixo */ }
+    }
+    // Fallback para navegadores sem Web Crypto (ex.: contexto não seguro)
+    let h = 2166136261;
+    for (let i = 0; i < value.length; i++) {
+      h ^= value.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return 'fnv1a-' + (h >>> 0).toString(16);
+  }
+
   function read() {
     try {
       const raw = localStorage.getItem(KEY);
@@ -143,18 +161,51 @@ const UserModule = (function () {
     return d;
   }
 
-  // PIN do cadastro — também é o código para sair do modo disfarce
-  function getPin() {
-    const p = read();
-    return p && p.pin ? String(p.pin) : null;
-  }
-
-  function setPin(pin) {
+  // PIN do cadastro — também é o código para sair do modo disfarce.
+  // O valor em texto puro nunca é persistido; apenas o hash e o tamanho.
+  function getPinLength() {
     const p = read();
     if (!p) return null;
-    p.pin = pin ? String(pin) : null;
-    p.hasPin = !!pin;
+    if (p.pinLength) return Number(p.pinLength);
+    if (p.pin) return String(p.pin).length;
+    return null;
+  }
+
+  async function verifyPin(pin) {
+    const p = read();
+    if (!p || pin == null) return false;
+    const candidate = String(pin);
+    if (p.pinHash) return (await hashPin(candidate)) === p.pinHash;
+    if (p.pin) return candidate === String(p.pin); // versão antiga, até a migração
+    return false;
+  }
+
+  async function setPin(pin) {
+    const p = read();
+    if (!p) return null;
+    if (pin) {
+      p.pinHash = await hashPin(pin);
+      p.pinLength = String(pin).length;
+      p.hasPin = true;
+    } else {
+      p.pinHash = null;
+      p.pinLength = null;
+      p.hasPin = false;
+    }
+    delete p.pin;
     return write(p);
+  }
+
+  // Converte perfis antigos (que guardavam o PIN em texto puro) para hash.
+  async function migratePin() {
+    const p = read();
+    if (!p || !p.pin) return false;
+    p.pinHash = await hashPin(p.pin);
+    p.pinLength = String(p.pin).length;
+    p.hasPin = true;
+    delete p.pin;
+    write(p);
+    return true;
   }
 
   /**
@@ -168,7 +219,8 @@ const UserModule = (function () {
     if (res.ok && res.data && res.data.user) {
       const prev = read();
       const profile = fromServer(res.data.user);
-      profile.pin = pin || (prev && prev.pin) || null;
+      profile.pinHash = pin ? await hashPin(pin) : (prev && prev.pinHash) || null;
+      profile.pinLength = pin ? String(pin).length : (prev && prev.pinLength) || null;
       profile.token = res.data.token || (prev && prev.token) || null;
       return { ok: true, profile: write(profile) };
     }
@@ -190,7 +242,8 @@ const UserModule = (function () {
           fullName,
           phone,
           birthDate,
-          pin: pin || null,
+          pinHash: pin ? await hashPin(pin) : null,
+          pinLength: pin ? String(pin).length : null,
           hasPin: !!pin,
           consentLgpd: !!consentLgpd,
           consentLocation: !!consentLocation,
@@ -209,7 +262,8 @@ const UserModule = (function () {
     if (res.ok && res.data && res.data.user) {
       const prev = read();
       const profile = fromServer(res.data.user);
-      profile.pin = pin || (prev && prev.pin) || null;
+      profile.pinHash = pin ? await hashPin(pin) : (prev && prev.pinHash) || null;
+      profile.pinLength = pin ? String(pin).length : (prev && prev.pinLength) || null;
       profile.token = res.data.token || (prev && prev.token) || null;
       return { ok: true, profile: write(profile) };
     }
@@ -232,7 +286,8 @@ const UserModule = (function () {
     const res = await Api.post(`/api/users/${p.id}/confirm`, { pin: pin || null }, authHeaders(p));
     if (res.ok && res.data && res.data.user) {
       const profile = fromServer(res.data.user);
-      profile.pin = pin || p.pin || null;
+      profile.pinHash = pin ? await hashPin(pin) : p.pinHash || null;
+      profile.pinLength = pin ? String(pin).length : p.pinLength || null;
       profile.token = res.data.token || p.token || null;
       return { ok: true, profile: write(profile) };
     }
@@ -240,7 +295,12 @@ const UserModule = (function () {
       // Confirma localmente mesmo sem servidor
       p.lastConfirmedAt = new Date().toISOString();
       p.unsynced = true;
-      if (pin) { p.pin = String(pin); p.hasPin = true; }
+      if (pin) {
+        p.pinHash = await hashPin(pin);
+        p.pinLength = String(pin).length;
+        p.hasPin = true;
+        delete p.pin;
+      }
       return { ok: true, offline: true, profile: write(p) };
     }
     return { ok: false, status: res.status, error: (res.data && res.data.error) || 'Não foi possível confirmar.' };
@@ -273,7 +333,8 @@ const UserModule = (function () {
     const res = await Api.patch(`/api/users/${p.id}/consent`, { consentLgpd, consentLocation }, authHeaders(p));
     if (res.ok && res.data && res.data.user) {
       const profile = fromServer(res.data.user);
-      profile.pin = p.pin || null;
+      profile.pinHash = p.pinHash || null;
+      profile.pinLength = p.pinLength || null;
       profile.token = p.token || null;
       return { ok: true, profile: write(profile) };
     }
@@ -313,8 +374,10 @@ const UserModule = (function () {
     hasConsent,
     hasLocationConsent,
     formatPhone,
-    getPin,
+    getPinLength,
+    verifyPin,
     setPin,
+    migratePin,
     register,
     login,
     confirm,

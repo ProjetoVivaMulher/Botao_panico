@@ -8,28 +8,39 @@
 
 const STORAGE_KEY_LOGS = 'viva_mulher_emergency_logs';
 const STORAGE_KEY_SKIP_ONBOARDING = 'viva_mulher_skip_onboarding';
+const STORAGE_KEY_LOCATION_ASKED = 'viva_mulher_location_asked';
 
 const AppController = {
-  countdownInterval: null,
-  countdownSeconds: 3,
-  isPanicArmed: false,
+  currentView: 'home',
+  isFiring: false,
   isRecordingManualAudio: false,
+  audioCapture: null,
+  lastSosMessage: '',
 
   init() {
     this.cacheDom();
     this.bindEvents();
+    this.switchView('home');
     this.renderContacts();
     this.renderLogs();
-    this.updateGpsStatus();
     this.syncAccessibilityUI();
     this.initProfile();
+    if (window.EvidenceModule) window.EvidenceModule.init();
   },
 
   // ==========================================
   // PERFIL / CADASTRO / LGPD
   // ==========================================
   initProfile() {
-    if (!window.UserModule) return;
+    if (!window.UserModule) {
+      this.initLocation();
+      return;
+    }
+
+    // Migra PIN em texto puro (versões antigas) para hash local
+    if (typeof UserModule.migratePin === 'function') {
+      UserModule.migratePin().catch(() => {});
+    }
 
     // Tenta reenviar cadastro que ficou pendente (offline)
     if (typeof UserModule.syncPending === 'function') {
@@ -46,6 +57,8 @@ const AppController = {
 
     if (!profile && !skipped) {
       setTimeout(() => this.openModal('onboardingModal'), 700);
+    } else {
+      this.initLocation();
     }
   },
 
@@ -85,8 +98,6 @@ const AppController = {
     if (this.dom.profileBannerTitle) this.dom.profileBannerTitle.textContent = title;
     if (this.dom.profileBannerSub) this.dom.profileBannerSub.textContent = sub;
     if (this.dom.profileBannerBtn) this.dom.profileBannerBtn.textContent = btn;
-
-    this.updateLocationConsentUI();
   },
 
   handleProfileBannerClick() {
@@ -247,32 +258,10 @@ const AppController = {
     if (this.dom.lgpdModal) this.dom.lgpdModal.classList.add('active');
   },
 
-  async toggleLocationConsent() {
-    if (!window.UserModule) return;
-    const next = !UserModule.hasLocationConsent();
-    await UserModule.updateConsent({ consentLocation: next });
-    // Guarda o consentimento localmente mesmo sem cadastro (prova LGPD)
-    if (UserModule.recordConsent) UserModule.recordConsent('location', next);
-    this.updateLocationConsentUI();
-    this.showToast(next
-      ? '📍 Sua localização será compartilhada no socorro.'
-      : '📍 Localização desativada. O socorro pode ficar menos preciso.');
-    if (next) this.ensureLocationPermission(true);
-  },
-
-  updateLocationConsentUI() {
-    const btn = this.dom.btnToggleLocationConsent;
-    if (!btn || !window.UserModule) return;
-    const on = UserModule.hasLocationConsent();
-    btn.textContent = on ? '📍 Compartilhar localização: Sim' : '📍 Compartilhar localização: Não';
-    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-    btn.classList.toggle('active', on);
-  },
-
   async handleDeleteData() {
     if (!window.UserModule) return;
     const profile = UserModule.getProfile();
-    if (!confirm('Apagar seus dados de cadastro, contatos, histórico e áudios deste celular? Esta ação não pode ser desfeita.')) {
+    if (!confirm('Apagar seus dados de cadastro, pessoas de confiança, histórico, áudios e provas deste celular? Esta ação não pode ser desfeita.')) {
       return;
     }
 
@@ -281,11 +270,17 @@ const AppController = {
     try {
       localStorage.removeItem(STORAGE_KEY_LOGS);
       localStorage.removeItem('viva_mulher_emergency_contacts');
+      localStorage.removeItem(STORAGE_KEY_SKIP_ONBOARDING);
+      localStorage.removeItem(STORAGE_KEY_LOCATION_ASKED);
     } catch (e) { /* ignore */ }
     if (window.AudioStore) {
       try { await window.AudioStore.clear(); } catch (e) { /* ignore */ }
     }
+    if (window.EvidenceStore) {
+      try { await window.EvidenceStore.clear(); } catch (e) { /* ignore */ }
+    }
 
+    if (window.EvidenceModule) window.EvidenceModule.render();
     this.renderContacts();
     this.renderLogs();
     this.updateProfileBanner();
@@ -359,17 +354,16 @@ const AppController = {
 
   cacheDom() {
     this.dom = {
+      appContent: document.getElementById('appContent'),
       btnPanic: document.getElementById('btnPanic'),
-      countdownOverlay: document.getElementById('countdownOverlay'),
-      countdownNumber: document.getElementById('countdownNumber'),
-      btnCancelPanic: document.getElementById('btnCancelPanic'),
+      btnPanicFloat: document.getElementById('btnPanicFloat'),
+      tabEvidenceBadge: document.getElementById('tabEvidenceBadge'),
       toastNotification: document.getElementById('toastNotification'),
       toastText: document.getElementById('toastText'),
       locationStatusDot: document.getElementById('locationStatusDot'),
       locationStatusText: document.getElementById('locationStatusText'),
       locationStatusSub: document.getElementById('locationStatusSub'),
-      btnRefreshLoc: document.getElementById('btnRefreshLoc'),
-      btnActivateLocation: document.getElementById('btnActivateLocation'),
+      btnRequestLocation: document.getElementById('btnRequestLocation'),
       locationModal: document.getElementById('locationModal'),
       locationModalBody: document.getElementById('locationModalBody'),
       btnEnableLocation: document.getElementById('btnEnableLocation'),
@@ -377,7 +371,13 @@ const AppController = {
       contactsList: document.getElementById('contactsList'),
       addContactForm: document.getElementById('addContactForm'),
       contactNameInput: document.getElementById('contactNameInput'),
+      contactRelationInput: document.getElementById('contactRelationInput'),
       contactPhoneInput: document.getElementById('contactPhoneInput'),
+      sosShareModal: document.getElementById('sosShareModal'),
+      sosContactsList: document.getElementById('sosContactsList'),
+      sosOfflineNote: document.getElementById('sosOfflineNote'),
+      btnCopySosMessage: document.getElementById('btnCopySosMessage'),
+      btnCloseSosShare: document.getElementById('btnCloseSosShare'),
       btnManualAudioRecord: document.getElementById('btnManualAudioRecord'),
       manualAudioIcon: document.getElementById('manualAudioIcon'),
       manualAudioText: document.getElementById('manualAudioText'),
@@ -410,7 +410,6 @@ const AppController = {
       btnOpenLgpd: document.getElementById('btnOpenLgpd'),
       btnCloseLgpd: document.getElementById('btnCloseLgpd'),
       lgpdModal: document.getElementById('lgpdModal'),
-      btnToggleLocationConsent: document.getElementById('btnToggleLocationConsent'),
       btnDeleteData: document.getElementById('btnDeleteData')
     };
   },
@@ -419,16 +418,25 @@ const AppController = {
     const on = (el, ev, fn) => { if (el) el.addEventListener(ev, fn); };
 
     on(this.dom.btnPanic, 'click', () => this.handlePanicButtonClick());
-    on(this.dom.btnCancelPanic, 'click', () => this.cancelPanic());
-    on(this.dom.btnRefreshLoc, 'click', () => this.updateGpsStatus(true));
-    on(this.dom.btnActivateLocation, 'click', () => this.ensureLocationPermission(true));
+    on(this.dom.btnPanicFloat, 'click', () => this.handlePanicButtonClick());
+
+    // Navegação por abas (Início / Provas / Pessoas)
+    const tabs = Array.from(document.querySelectorAll('.tab-btn'));
+    tabs.forEach((tab) => {
+      on(tab, 'click', () => this.switchView(tab.dataset.view));
+      on(tab, 'keydown', (event) => this.handleTabKeydown(event));
+    });
+
     on(this.dom.btnEnableLocation, 'click', () => this.requestLocationFromGesture());
-    on(this.dom.btnLocationLater, 'click', () => this.closeModal('locationModal'));
+    on(this.dom.btnLocationLater, 'click', () => this.dismissLocationPrompt());
+    on(this.dom.btnRequestLocation, 'click', () => this.handleRequestLocationClick());
     on(this.dom.btnToggleSilentMode, 'click', () => this.handleToggleSilentMode());
     on(this.dom.btnToggleHaptic, 'click', () => this.handleToggleHaptic());
 
     on(this.dom.addContactForm, 'submit', (e) => { e.preventDefault(); this.handleAddContact(); });
     on(this.dom.btnManualAudioRecord, 'click', () => this.handleManualAudioRecord());
+    on(this.dom.btnCloseSosShare, 'click', () => this.closeSosShare());
+    on(this.dom.btnCopySosMessage, 'click', () => this.copySosMessage());
 
     // Perfil / cadastro
     on(this.dom.profileBannerBtn, 'click', () => this.handleProfileBannerClick());
@@ -457,44 +465,128 @@ const AppController = {
     // LGPD / privacidade
     on(this.dom.btnOpenLgpd, 'click', () => this.openLgpd());
     on(this.dom.btnCloseLgpd, 'click', () => this.closeModal('lgpdModal'));
-    on(this.dom.btnToggleLocationConsent, 'click', () => this.toggleLocationConsent());
     on(this.dom.btnDeleteData, 'click', () => this.handleDeleteData());
 
     on(this.dom.btnClearLocalData, 'click', () => this.handleClearLocalData());
   },
 
   // ==========================================
+  // NAVEGAÇÃO POR ABAS
+  // ==========================================
+  switchView(view) {
+    const views = ['home', 'evidence', 'contacts'];
+    const next = views.indexOf(view) >= 0 ? view : 'home';
+    this.currentView = next;
+
+    document.querySelectorAll('.app-view').forEach((section) => {
+      section.hidden = section.dataset.view !== next;
+    });
+
+    document.querySelectorAll('.tab-btn').forEach((tab) => {
+      const active = tab.dataset.view === next;
+      tab.classList.toggle('is-active', active);
+      tab.setAttribute('aria-selected', active ? 'true' : 'false');
+      tab.tabIndex = active ? 0 : -1;
+    });
+
+    // O SOS fica sempre disponível: botão grande na Início e flutuante nas demais abas.
+    if (this.dom.btnPanicFloat) this.dom.btnPanicFloat.hidden = next === 'home';
+    if (this.dom.appContent) this.dom.appContent.scrollTop = 0;
+
+    if (next === 'evidence' && window.EvidenceModule) window.EvidenceModule.render();
+    if (next === 'contacts') this.renderContacts();
+  },
+
+  handleTabKeydown(event) {
+    const keys = ['ArrowRight', 'ArrowLeft', 'Home', 'End'];
+    if (keys.indexOf(event.key) < 0) return;
+    event.preventDefault();
+
+    const tabs = Array.from(document.querySelectorAll('.tab-btn'));
+    const index = tabs.indexOf(event.currentTarget);
+    if (index < 0) return;
+
+    let next = index;
+    if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
+    else if (event.key === 'ArrowLeft') next = (index - 1 + tabs.length) % tabs.length;
+    else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = tabs.length - 1;
+
+    if (tabs[next]) {
+      this.switchView(tabs[next].dataset.view);
+      tabs[next].focus();
+    }
+  },
+
+  updateEvidenceBadge(count) {
+    const badge = this.dom.tabEvidenceBadge;
+    if (!badge) return;
+    const total = Number(count) || 0;
+    badge.textContent = String(total);
+    badge.hidden = total === 0;
+  },
+
+  // ==========================================
   // GEOLOCALIZAÇÃO & STATUS
   // ==========================================
+  initLocation() {
+    if (!window.GeolocationModule) return;
+    window.GeolocationModule.getPermissionState().then((state) => {
+      if (state === 'granted') {
+        this.markLocationAsked();
+        this.updateGpsStatus();
+        return;
+      }
+      const consented = window.UserModule && UserModule.hasLocationConsent();
+      if (consented && !this.locationWasAsked()) {
+        this.openLocationModal(state);
+      } else {
+        this.showLocationNeedsActivation(state);
+      }
+    }).catch(() => {
+      this.showLocationNeedsActivation('unknown');
+    });
+  },
+
+  locationWasAsked() {
+    try { return localStorage.getItem(STORAGE_KEY_LOCATION_ASKED) === 'true'; } catch (e) { return false; }
+  },
+
+  markLocationAsked() {
+    try { localStorage.setItem(STORAGE_KEY_LOCATION_ASKED, 'true'); } catch (e) { /* ignore */ }
+  },
+
   async updateGpsStatus(userInitiated = false) {
     if (!this.dom.locationStatusDot || !window.GeolocationModule) return;
 
-    // A permissão do navegador só é concedida a partir de um toque (requisito do iOS).
-    // Sem toque, não insistimos: mostramos o convite para ativar.
     const state = await window.GeolocationModule.getPermissionState();
-    if (!userInitiated && state !== 'granted') {
+    if (state !== 'granted') {
       this.showLocationNeedsActivation(state);
       return;
     }
 
     this.dom.locationStatusDot.className = 'status-dot';
-    this.dom.locationStatusText.textContent = 'Verificando GPS...';
-    this.dom.locationStatusSub.textContent = 'Buscando coordenadas de alta precisão';
-    if (this.dom.btnActivateLocation) this.dom.btnActivateLocation.style.display = 'none';
+    this.dom.locationStatusText.textContent = 'Verificando localização…';
+    this.dom.locationStatusSub.textContent = 'Buscando sinal de GPS';
 
     const loc = await window.GeolocationModule.getCurrentLocation();
 
     if (loc && loc.success) {
       this.dom.locationStatusDot.className = 'status-dot active';
-      this.dom.locationStatusText.textContent = `GPS Ativo (${loc.accuracy}m precisão)`;
-      this.dom.locationStatusSub.textContent = `Lat: ${loc.lat}, Lng: ${loc.lng}`;
-      if (userInitiated) this.showToast('✅ Localização atualizada com sucesso!');
+      this.dom.locationStatusText.textContent = 'Localização ativa';
+      this.dom.locationStatusSub.textContent = `Precisão de aproximadamente ${loc.accuracy} m`;
+      if (this.dom.btnRequestLocation) this.dom.btnRequestLocation.hidden = true;
+      if (userInitiated) this.showToast('📍 Localização ativada. Você está mais protegida.');
     } else {
       this.dom.locationStatusDot.className = 'status-dot';
-      this.dom.locationStatusText.textContent = 'GPS Indisponível';
-      this.dom.locationStatusSub.textContent = (loc && loc.reason) || 'Usando modo de contingência';
-      if (this.dom.btnActivateLocation) this.dom.btnActivateLocation.style.display = 'inline-block';
-      if (userInitiated) this.showToast('⚠️ Não foi possível obter o GPS. Toque em "Ativar GPS".');
+      this.dom.locationStatusText.textContent = 'Localização indisponível';
+      this.dom.locationStatusSub.textContent = 'O socorro continua funcionando. Se puder, ative o GPS do celular.';
+      if (this.dom.btnRequestLocation) {
+        this.dom.btnRequestLocation.hidden = false;
+        this.dom.btnRequestLocation.dataset.state = 'granted';
+        this.dom.btnRequestLocation.textContent = 'Tentar';
+      }
+      if (userInitiated) this.showToast('⚠️ Não foi possível obter o GPS agora.');
     }
   },
 
@@ -503,18 +595,34 @@ const AppController = {
     if (this.dom.locationStatusText) this.dom.locationStatusText.textContent = 'Localização desativada';
     if (this.dom.locationStatusSub) {
       this.dom.locationStatusSub.textContent = state === 'denied'
-        ? 'Bloqueada no navegador — toque em "Ativar GPS"'
-        : 'Toque em "Ativar GPS" para permitir';
+        ? 'Permissão bloqueada no navegador. Você pode liberar nas configurações do celular.'
+        : 'Ative a localização para um socorro mais preciso.';
     }
-    if (this.dom.btnActivateLocation) this.dom.btnActivateLocation.style.display = 'inline-block';
+    const action = this.dom.btnRequestLocation;
+    if (action) {
+      action.dataset.state = state || 'unknown';
+      action.hidden = state === 'unsupported';
+      action.textContent = state === 'denied' ? 'Como liberar' : 'Ativar';
+    }
   },
 
-  // Mostra o convite para ativar a localização (a permissão nativa dispara no toque do botão)
-  async ensureLocationPermission(force = false) {
+  handleRequestLocationClick() {
+    const action = this.dom.btnRequestLocation;
+    const state = action ? action.dataset.state : '';
+    if (state === 'denied') {
+      this.showToast('A localização está bloqueada. Libere o acesso nas configurações do navegador.');
+      return;
+    }
+    if (state === 'unsupported') return;
+    this.requestLocationFromGesture();
+  },
+
+  // Convite único: depois do aceite, o app não volta a pedir permissão/consentimento.
+  async ensureLocationPermission() {
     if (!window.GeolocationModule) return;
-    if (!force && window.UserModule && !UserModule.hasLocationConsent()) return;
     const state = await window.GeolocationModule.getPermissionState();
     if (state === 'granted') {
+      this.markLocationAsked();
       this.updateGpsStatus(true);
       return;
     }
@@ -526,37 +634,95 @@ const AppController = {
     const denied = state === 'denied';
     if (this.dom.locationModalBody) {
       this.dom.locationModalBody.innerHTML = denied
-        ? '<p class="sheet-sub">A localização está <strong>bloqueada</strong> neste navegador. Abra as configurações do navegador/celular, permita o acesso à localização para este site e toque em "Já liberei".</p>' +
-          '<p class="sheet-sub" style="color:var(--text-muted); font-size:0.82rem;">No iPhone: Ajustes › Safari › Localização. No Android: toque no cadeado ao lado do endereço › Permissões.</p>'
-        : '<p class="sheet-sub">A localização é o que permite o socorro chegar exatamente até você. Usamos <strong>apenas no momento do acionamento</strong> — nada de rastreamento contínuo.</p>' +
-          '<p class="sheet-sub" style="color:var(--text-muted); font-size:0.82rem;">Ao tocar no botão abaixo, o seu celular vai pedir a confirmação de acesso à localização.</p>';
+        ? '<p class="sheet-sub">A localização está <strong>bloqueada</strong> neste navegador. Abra as configurações do celular, permita o acesso à localização para este site e toque em "Já liberei".</p>' +
+          '<p class="sheet-sub">No iPhone: Ajustes › Safari › Localização. No Android: cadeado ao lado do endereço › Permissões.</p>'
+        : '<p class="sheet-sub">Sua localização ajuda o socorro a chegar até você. Ela é usada <strong>apenas quando você aciona o botão de pânico</strong> — não há rastreamento contínuo.</p>' +
+          '<p class="sheet-sub">Ao tocar abaixo, o celular vai pedir a confirmação de acesso à localização.</p>';
     }
     if (this.dom.btnEnableLocation) {
-      this.dom.btnEnableLocation.textContent = denied ? '🔁 Já liberei, tentar de novo' : '📍 Permitir localização agora';
+      this.dom.btnEnableLocation.textContent = denied ? 'Já liberei, tentar de novo' : 'Permitir localização';
     }
     this.openModal('locationModal');
   },
 
   // Chamado num toque real da usuária — é isso que faz o navegador (iOS) mostrar o pedido
   async requestLocationFromGesture() {
+    this.markLocationAsked();
     this.closeModal('locationModal');
     if (!window.GeolocationModule) return;
     if (window.UserModule && UserModule.recordConsent && !UserModule.hasLocationConsent()) {
       UserModule.recordConsent('location', true);
     }
+    if (window.UserModule && typeof UserModule.updateConsent === 'function') {
+      UserModule.updateConsent({ consentLocation: true }).catch(() => {});
+    }
     await this.updateGpsStatus(true);
+  },
+
+  dismissLocationPrompt() {
+    this.markLocationAsked();
+    this.closeModal('locationModal');
+    if (window.GeolocationModule) {
+      window.GeolocationModule.getPermissionState().then((state) => {
+        this.showLocationNeedsActivation(state);
+      }).catch(() => {
+        this.showLocationNeedsActivation('unknown');
+      });
+    }
   },
 
   // ==========================================
   // BOTÃO DE PÂNICO & FLUXO DE EMERGÊNCIA
   // ==========================================
+  // Regra de ouro: um toque dispara o socorro. Sem cadastro, sem consentimento
+  // e sem confirmação — o WhatsApp abre automaticamente com a mensagem pronta.
   handlePanicButtonClick() {
-    // O pânico NUNCA depende de cadastro ou consentimento.
-    this.startPanicCountdown();
+    if (this.isFiring) return;
+    this.isFiring = true;
+    setTimeout(() => { this.isFiring = false; }, 4000);
+
+    if (window.AccessibilityModule) {
+      window.AccessibilityModule.vibrate('PANIC_START');
+      window.AccessibilityModule.announce('Pedido de socorro enviado. Abrindo o WhatsApp.');
+      window.AccessibilityModule.triggerVisualFlash();
+    }
+
+    const geo = window.GeolocationModule;
+    const cached = geo ? (geo.currentPosition || geo.lastKnownGoodPosition) : null;
+
+    if (geo) {
+      // Toque = gesto válido para o navegador pedir a permissão de GPS.
+      geo.startWatching();
+      geo.getCurrentLocation(4000).catch(() => {});
+    }
+
+    const now = new Date();
+    const eventId = this.buildEventId(now);
+
+    // O áudio de 15 s começa imediatamente, antes de qualquer espera.
+    this.startPanicAudio(eventId);
+    this.triggerEmergencyAlert({ cachedLoc: cached, eventId, now });
+  },
+
+  buildEventId(now) {
+    return 'EVT-' + now.getFullYear() + '-' +
+      String(now.getMonth() + 1).padStart(2, '0') + '-' +
+      String(now.getDate()).padStart(2, '0') + '-' +
+      Math.floor(1000 + Math.random() * 9000);
+  },
+
+  startPanicAudio(eventId) {
+    if (!window.AudioModule || window.AudioModule.isRecording) return;
+    this.audioCapture = { source: 'panic', eventId };
+    window.AudioModule.startRecording(15000).then((started) => {
+      if (!started && this.audioCapture && this.audioCapture.eventId === eventId) {
+        this.audioCapture = null;
+      }
+    });
   },
 
   handleClearLocalData() {
-    if (confirm('Apagar contatos, áudios e histórico salvos neste celular?')) {
+    if (confirm('Apagar pessoas de confiança, áudios, provas e histórico salvos neste celular?')) {
       try {
         localStorage.removeItem(STORAGE_KEY_LOGS);
         localStorage.removeItem('viva_mulher_emergency_contacts');
@@ -566,138 +732,243 @@ const AppController = {
       if (window.AudioStore) {
         window.AudioStore.clear().catch(() => {});
       }
+      if (window.EvidenceStore) {
+        window.EvidenceStore.clear().catch(() => {});
+      }
+      if (window.EvidenceModule) window.EvidenceModule.render();
       this.renderContacts();
       this.renderLogs();
-      this.showToast('🗑️ Histórico e registros locais apagados.');
+      this.showToast('🗑️ Histórico, provas e registros locais apagados.');
     }
   },
 
-  startPanicCountdown() {
-    if (this.isPanicArmed) return;
-
-    this.isPanicArmed = true;
-    this.countdownSeconds = 3;
-
-    if (window.AccessibilityModule) {
-      window.AccessibilityModule.vibrate('PANIC_START');
-      window.AccessibilityModule.announce('Iniciando contagem de socorro. Três segundos.');
-      window.AccessibilityModule.triggerVisualFlash();
-    }
-
-    if (this.dom.countdownNumber) this.dom.countdownNumber.textContent = this.countdownSeconds;
-    if (this.dom.countdownOverlay) this.dom.countdownOverlay.classList.add('active');
-
-    // Pré-carrega o GPS em background e passa a observar a posição (toque = gesto válido p/ permissão)
-    if (window.GeolocationModule) {
-      window.GeolocationModule.getCurrentLocation();
-      window.GeolocationModule.startWatching();
-    }
-
-    this.countdownInterval = setInterval(() => {
-      this.countdownSeconds--;
-
-      if (this.countdownSeconds <= 0) {
-        clearInterval(this.countdownInterval);
-        if (this.dom.countdownOverlay) this.dom.countdownOverlay.classList.remove('active');
-        this.isPanicArmed = false;
-        this.triggerEmergencyAlert();
-      } else {
-        if (window.AccessibilityModule) {
-          window.AccessibilityModule.vibrate('COUNTDOWN_TICK');
-          window.AccessibilityModule.announce(this.countdownSeconds + ' segundos');
-          window.AccessibilityModule.triggerVisualFlash();
-        }
-        if (this.dom.countdownNumber) this.dom.countdownNumber.textContent = this.countdownSeconds;
-      }
-    }, 1000);
+  // Espera curta por uma leitura de GPS melhor; o socorro NUNCA fica preso nisso.
+  waitForLocation(maxWaitMs) {
+    return new Promise((resolve) => {
+      const startedAt = Date.now();
+      const tick = () => {
+        const geo = window.GeolocationModule;
+        const current = geo ? (geo.currentPosition || geo.lastKnownGoodPosition) : null;
+        if (current && current.success) return resolve(current);
+        if (Date.now() - startedAt >= maxWaitMs) return resolve(current || null);
+        setTimeout(tick, 150);
+      };
+      tick();
+    });
   },
 
-  cancelPanic() {
-    if (this.countdownInterval) clearInterval(this.countdownInterval);
-    this.isPanicArmed = false;
-    if (this.dom.countdownOverlay) this.dom.countdownOverlay.classList.remove('active');
-    if (window.AccessibilityModule) {
-      window.AccessibilityModule.vibrate('CANCELLED');
-      window.AccessibilityModule.announce('Disparo cancelado');
-    }
-    this.showToast('✖ Disparo de emergência cancelado.');
-  },
-
-  async triggerEmergencyAlert() {
-    if (window.AccessibilityModule) {
-      window.AccessibilityModule.vibrate('ALERT_SENT');
-      window.AccessibilityModule.announce('Alerta de socorro disparado!');
-    }
-    this.showToast('🚨 Disparando alerta de socorro...');
-
-    // 1. Localização atual
-    let loc = window.GeolocationModule ? window.GeolocationModule.currentPosition : null;
-    if (!loc) {
-      loc = window.GeolocationModule ? await window.GeolocationModule.getCurrentLocation() : { success: false };
-    }
-
-    // 2. ID único e horário
-    const now = new Date();
+  // Monta a mensagem de socorro (usada no pânico e no envio manual para uma pessoa).
+  composeAlert({ eventId, now, loc }) {
     const dateFormatted = now.toLocaleDateString('pt-BR');
     const timeFormatted = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    const eventId = 'EVT-' + now.getFullYear() + '-' +
-      String(now.getMonth() + 1).padStart(2, '0') +
-      String(now.getDate()).padStart(2, '0') + '-' +
-      Math.floor(1000 + Math.random() * 9000);
-
     const isSilent = window.AccessibilityModule ? window.AccessibilityModule.isSilentMode() : false;
     const profile = window.UserModule ? UserModule.getProfile() : null;
     const userName = profile ? profile.fullName : null;
 
-    // 3. Mensagem de socorro
-    let message;
-    if (window.EmergencyMessageModule) {
-      message = window.EmergencyMessageModule.buildMessage({
-        eventId, dateFormatted, timeFormatted, loc, isSilent, name: userName
-      });
-    } else {
-      message = `🚨 ALERTA DE EMERGÊNCIA - VIVA MULHER 🚨\n\nPreciso de ajuda!\n📅 ${dateFormatted} 🕐 ${timeFormatted}\n🆔 ${eventId}`;
+    const message = window.EmergencyMessageModule
+      ? window.EmergencyMessageModule.buildMessage({
+          eventId, dateFormatted, timeFormatted, loc: loc || { success: false }, isSilent, name: userName
+        })
+      : `🚨 ALERTA DE EMERGÊNCIA - VIVA MULHER 🚨\n\nPreciso de ajuda!\n📅 ${dateFormatted} 🕐 ${timeFormatted}\n🆔 ${eventId}`;
+
+    return { message, dateFormatted, timeFormatted, profile };
+  },
+
+  async triggerEmergencyAlert({ cachedLoc, eventId, now }) {
+    let loc = cachedLoc && cachedLoc.success ? cachedLoc : null;
+
+    if (!loc && window.GeolocationModule) {
+      loc = await this.waitForLocation(2000);
     }
 
-    // 4. Gravação de áudio de evidência (15s), se disponível
-    if (window.AudioModule) window.AudioModule.startRecording(15000);
+    const { message, dateFormatted, timeFormatted, profile } = this.composeAlert({ eventId, now, loc });
 
-    // 5. Registro local
-    this.saveEmergencyLog({ id: eventId, date: dateFormatted, time: timeFormatted, loc, hasAudio: true });
+    // 1. Registro local (nunca depende de internet)
+    this.saveEmergencyLog({
+      id: eventId,
+      date: dateFormatted,
+      time: timeFormatted,
+      loc: loc || { success: false },
+      hasAudio: false,
+      evidenceId: null
+    });
 
-    // 6. Envia para o backend (best-effort, nunca bloqueia o WhatsApp)
-    if (window.Api && profile && profile.id && !String(profile.id).startsWith('local-')) {
-      Api.post('/api/alerts', {
-        user_id: profile.id,
-        location: loc && loc.success
-          ? { lat: loc.lat, lng: loc.lng, accuracy: loc.accuracy, mapsUrl: loc.mapsUrl }
-          : { lat: null, lng: null },
-        message,
-        battery_level: null
-      }).catch(() => {});
+    // 3. Central Viva Mulher: registra o alerta no painel de atendimento.
+    //    Best-effort: se estiver offline, o registro local continua valendo.
+    this.notifyCentral({ eventId, loc, message, profile });
+
+    // 4. Folha de SOS com todas as pessoas (e a Central por último)
+    this.showSosShare(message);
+
+    // 5. WhatsApp automático: telefone cadastrado + Central (best-effort)
+    this.openWhatsAppForTargets(message);
+
+    if (window.AccessibilityModule) {
+      window.AccessibilityModule.vibrate('ALERT_SENT');
+      window.AccessibilityModule.announce('Alerta de socorro disparado!');
     }
 
-    // 7. Envia via WhatsApp para o contato principal
-    const contacts = window.ContactsModule ? window.ContactsModule.getContacts() : [];
-    const socorroPhone = (window.APP_CONFIG && window.APP_CONFIG.SOCORRO_PHONE) || '552139553874';
-    const primaryPhone = contacts.length > 0 ? contacts[0].phone : socorroPhone;
+    this.showToast(navigator.onLine
+      ? '🚨 Socorro disparado! Confirme o envio no WhatsApp.'
+      : '📴 Sem internet: socorro salvo no aparelho. Ligue 190.');
 
-    let whatsappUrl = `https://wa.me/${primaryPhone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
-    if (window.EmergencyMessageModule) {
-      whatsappUrl = window.EmergencyMessageModule.buildWhatsAppUrl(primaryPhone, message);
+    if (window.GeolocationModule) window.GeolocationModule.stopWatching();
+  },
+
+  // Envia o alerta para o painel da Central (e guarda o ID do evento).
+  notifyCentral({ eventId, loc, message, profile }) {
+    if (!window.Api || !navigator.onLine) return;
+    const user = profile && profile.id ? profile.id : 'anonymous';
+    window.Api.post('/api/alerts', {
+      eventId,
+      user_id: user,
+      location: loc && loc.success
+        ? { lat: loc.lat, lng: loc.lng, accuracy: loc.accuracy, mapsUrl: loc.mapsUrl }
+        : { lat: null, lng: null },
+      message,
+      battery_level: null
+    }).catch(() => {});
+  },
+
+  // Abre o WhatsApp automaticamente para o telefone cadastrado e, em seguida,
+  // para a Central. Cada link do WhatsApp atende UM número; quando o navegador
+  // bloqueia a segunda janela, a folha de SOS deixa a Central a um toque.
+  openWhatsAppForTargets(message) {
+    if (!navigator.onLine) return;
+
+    const targets = this.getSosTargets();
+    if (!targets.length) return;
+
+    const primary = targets[0];
+    const central = targets.find((t) => t.isDefault) ||
+      { name: (window.APP_CONFIG && window.APP_CONFIG.SOCORRO_NAME) || 'Central Viva Mulher', phone: (window.APP_CONFIG && window.APP_CONFIG.SOCORRO_PHONE) || '552139553874' };
+
+    const primaryOpened = this.openWhatsAppWindow(primary.phone, message);
+    if (!primaryOpened) {
+      // Sem gesto do usuário (ou pop-up bloqueado): navega na mesma aba.
+      this.navigateToWhatsApp(primary.phone, message);
+      return;
     }
+
+    if (String(central.phone).replace(/\D/g, '') !== String(primary.phone).replace(/\D/g, '')) {
+      this.openWhatsAppWindow(central.phone, message);
+    }
+  },
+
+  openWhatsAppWindow(phone, message) {
+    const number = String(phone || '').replace(/\D/g, '');
+    if (!number) return false;
+    const url = window.EmergencyMessageModule
+      ? window.EmergencyMessageModule.buildWhatsAppUrl(number, message)
+      : `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
 
     try {
-      const win = window.open(whatsappUrl, '_blank');
-      if (!win || win.closed || typeof win.closed === 'undefined') {
-        window.location.href = whatsappUrl;
+      const win = window.open(url, '_blank');
+      if (win) {
+        try { win.opener = null; } catch (e) { /* ignore */ }
+        return true;
       }
-    } catch (e) {
-      window.location.href = whatsappUrl;
+    } catch (e) { /* ignore */ }
+    return false;
+  },
+
+  navigateToWhatsApp(phone, message) {
+    const number = String(phone || '').replace(/\D/g, '');
+    if (!number) return;
+    const url = window.EmergencyMessageModule
+      ? window.EmergencyMessageModule.buildWhatsAppUrl(number, message)
+      : `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
+    try { window.location.href = url; } catch (e) { /* ignore */ }
+  },
+
+  // ==========================================
+  // SOS PARA AS PESSOAS DE CONFIANÇA
+  // ==========================================
+  getSosTargets() {
+    if (window.ContactsModule) {
+      if (typeof window.ContactsModule.getAlertTargets === 'function') {
+        return window.ContactsModule.getAlertTargets();
+      }
+      return window.ContactsModule.getContacts();
+    }
+    const socorroPhone = (window.APP_CONFIG && window.APP_CONFIG.SOCORRO_PHONE) || '552139553874';
+    const socorroName = (window.APP_CONFIG && window.APP_CONFIG.SOCORRO_NAME) || 'Central Viva Mulher (Socorro)';
+    return [{ id: 'default-1', name: socorroName, phone: socorroPhone, isDefault: true }];
+  },
+
+  showSosShare(message) {
+    this.lastSosMessage = message || '';
+    const list = this.dom.sosContactsList;
+    if (!list) return;
+
+    if (this.dom.sosOfflineNote) this.dom.sosOfflineNote.hidden = navigator.onLine;
+
+    const targets = this.getSosTargets();
+    list.innerHTML = '';
+
+    if (targets.length === 0) {
+      list.innerHTML = '<div class="sos-empty">Nenhuma pessoa cadastrada. Ligue 190 ou cadastre alguém em "Pessoas".</div>';
     }
 
-    // Encerra a observação do GPS (já usamos a melhor leitura disponível)
-    if (window.GeolocationModule) window.GeolocationModule.stopWatching();
+    targets.forEach((contact) => {
+      const phone = String(contact.phone || '').replace(/\D/g, '');
+      const url = window.EmergencyMessageModule
+        ? window.EmergencyMessageModule.buildWhatsAppUrl(phone, this.lastSosMessage)
+        : `https://wa.me/${phone}?text=${encodeURIComponent(this.lastSosMessage)}`;
+
+      const link = document.createElement('a');
+      link.className = contact.isDefault ? 'sos-person central' : 'sos-person';
+      link.href = url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      const relation = contact.relation ? ` • ${this.escapeHtml(contact.relation)}` : '';
+      const role = contact.isDefault ? 'Central Viva Mulher' : 'Pessoa de confiança';
+      link.innerHTML = `
+        <span class="sos-person-avatar" aria-hidden="true">${contact.isDefault ? '🛡️' : '💬'}</span>
+        <span class="sos-person-body">
+          <strong>${this.escapeHtml(contact.name)}${relation}</strong>
+          <small>${role} · ${this.escapeHtml(this.formatPhone(phone))}</small>
+        </span>
+        <span class="sos-person-go">${contact.isDefault ? 'Enviar' : 'Abrir'}</span>
+      `;
+      link.addEventListener('click', () => link.classList.add('sent'));
+      list.appendChild(link);
+    });
+
+    this.openModal('sosShareModal');
+  },
+
+  closeSosShare() {
+    this.closeModal('sosShareModal');
+  },
+
+  async copySosMessage() {
+    if (!this.lastSosMessage) return;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(this.lastSosMessage);
+      } else {
+        const area = document.createElement('textarea');
+        area.value = this.lastSosMessage;
+        area.setAttribute('readonly', '');
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        document.body.appendChild(area);
+        area.select();
+        document.execCommand('copy');
+        area.remove();
+      }
+      this.showToast('📋 Mensagem copiada. Cole no WhatsApp de quem quiser.');
+    } catch (e) {
+      this.showToast('⚠️ Não foi possível copiar a mensagem.');
+    }
+  },
+
+  formatPhone(phone) {
+    if (window.UserModule && typeof UserModule.formatPhone === 'function') {
+      return UserModule.formatPhone(phone);
+    }
+    return String(phone || '').replace(/\D/g, '');
   },
 
   // ==========================================
@@ -710,30 +981,41 @@ const AppController = {
     this.dom.contactsList.innerHTML = '';
 
     if (contacts.length === 0) {
-      this.dom.contactsList.innerHTML = '<div style="color:var(--text-muted); font-size:0.82rem;">Nenhum contato cadastrado.</div>';
+      this.dom.contactsList.innerHTML = '<div class="empty-state small">Nenhuma pessoa cadastrada. O SOS vai para a Central Viva Mulher.</div>';
       return;
     }
 
     contacts.forEach((contact) => {
       const item = document.createElement('div');
       item.className = 'contact-item';
+      const relation = contact.relation ? ` · ${this.escapeHtml(contact.relation)}` : '';
       item.innerHTML = `
-        <div class="contact-info">
-          <span class="contact-name">${this.escapeHtml(contact.name)} ${contact.isDefault ? '<small style="color:var(--text-subtle);">(Padrão)</small>' : ''}</span>
-          <span class="contact-phone">📱 ${this.escapeHtml(contact.phone)}</span>
+        <div class="contact-main">
+          <div class="contact-info">
+            <span class="contact-name">${this.escapeHtml(contact.name)} ${contact.isDefault ? '<small class="contact-badge">Central</small>' : ''}</span>
+            <span class="contact-phone">📱 ${this.escapeHtml(this.formatPhone(contact.phone))}${relation}</span>
+          </div>
+          <div class="contact-actions">
+            <a href="https://wa.me/${String(contact.phone).replace(/\D/g, '')}" target="_blank" rel="noopener noreferrer" class="btn-sm-action" title="Testar WhatsApp" aria-label="Testar WhatsApp de ${this.escapeHtml(contact.name)}">💬</a>
+            ${!contact.isDefault ? `<button class="btn-sm-action delete" data-id="${this.escapeHtml(contact.id)}" title="Excluir" aria-label="Excluir ${this.escapeHtml(contact.name)}">🗑️</button>` : ''}
+          </div>
         </div>
-        <div class="contact-actions">
-          <a href="https://wa.me/${contact.phone.replace(/\D/g, '')}" target="_blank" rel="noopener" class="btn-sm-action" title="Testar WhatsApp">💬</a>
-          ${!contact.isDefault ? `<button class="btn-sm-action delete" data-id="${this.escapeHtml(contact.id)}" title="Excluir">🗑️</button>` : ''}
-        </div>
+        <button type="button" class="btn-send-alert" data-id="${this.escapeHtml(contact.id)}">
+          🚨 Avisar agora
+        </button>
       `;
+
+      const sendBtn = item.querySelector('.btn-send-alert');
+      if (sendBtn) {
+        sendBtn.addEventListener('click', () => this.sendAlertToContact(contact.id, sendBtn));
+      }
 
       const deleteBtn = item.querySelector('.delete');
       if (deleteBtn) {
         deleteBtn.addEventListener('click', () => {
           window.ContactsModule.removeContact(contact.id);
           this.renderContacts();
-          this.showToast('Contato removido.');
+          this.showToast('Pessoa de confiança removida.');
         });
       }
 
@@ -741,21 +1023,104 @@ const AppController = {
     });
   },
 
+  // Envio manual do alerta real (com localização) para uma pessoa específica.
+  // Serve para avisar depois, ou quando o envio automático do pânico não abriu.
+  async sendAlertToContact(contactId, button) {
+    if (this.sendingAlertTo) return;
+
+    const contact = window.ContactsModule
+      ? window.ContactsModule.getContacts().find((c) => c.id === contactId)
+      : null;
+
+    if (!contact) {
+      this.showToast('⚠️ Pessoa não encontrada. Atualize a lista.');
+      return;
+    }
+
+    this.sendingAlertTo = contactId;
+    const originalLabel = button ? button.innerHTML : '';
+    if (button) {
+      button.disabled = true;
+      button.innerHTML = '📡 Preparando alerta...';
+    }
+
+    try {
+      if (window.AccessibilityModule) {
+        window.AccessibilityModule.vibrate('PANIC_START');
+        window.AccessibilityModule.announce('Preparando alerta para ' + contact.name);
+      }
+
+      let loc = window.GeolocationModule
+        ? (window.GeolocationModule.currentPosition || window.GeolocationModule.lastKnownGoodPosition)
+        : null;
+
+      if (!loc || !loc.success) {
+        if (window.GeolocationModule) window.GeolocationModule.getCurrentLocation(4000).catch(() => {});
+        loc = await this.waitForLocation(2000);
+      }
+
+      const now = new Date();
+      const eventId = this.buildEventId(now);
+      const { message, dateFormatted, timeFormatted, profile } = this.composeAlert({ eventId, now, loc });
+
+      // Histórico local: o envio manual também é um pedido de socorro registrado.
+      this.saveEmergencyLog({
+        id: eventId,
+        date: dateFormatted,
+        time: timeFormatted,
+        loc: loc || { success: false },
+        hasAudio: false,
+        evidenceId: null,
+        targetName: contact.name
+      });
+
+      // O painel da Central também fica sabendo do alerta.
+      this.notifyCentral({ eventId, loc, message, profile });
+
+      const opened = this.openWhatsAppWindow(contact.phone, message);
+      if (!opened) this.navigateToWhatsApp(contact.phone, message);
+
+      if (window.AccessibilityModule) {
+        window.AccessibilityModule.vibrate('ALERT_SENT');
+        window.AccessibilityModule.announce('Alerta preparado para ' + contact.name);
+      }
+
+      this.showToast(navigator.onLine
+        ? '🚨 Alerta preparado para ' + contact.name + '. Toque em enviar no WhatsApp.'
+        : '📴 Sem internet: alerta salvo no aparelho. Ligue 190.');
+    } catch (error) {
+      console.error('[AppController] Erro ao enviar alerta manual:', error);
+      this.showToast('⚠️ Não foi possível preparar o alerta. Tente novamente.');
+    } finally {
+      this.sendingAlertTo = null;
+      if (button) {
+        button.disabled = false;
+        button.innerHTML = originalLabel;
+      }
+    }
+  },
+
   handleAddContact() {
     const name = this.dom.contactNameInput.value.trim();
+    const relation = this.dom.contactRelationInput ? this.dom.contactRelationInput.value.trim() : '';
     const phone = this.dom.contactPhoneInput.value.trim();
 
     if (!name || !phone) {
-      this.showToast('⚠️ Preencha nome e WhatsApp.');
+      this.showToast('⚠️ Preencha o nome e o WhatsApp.');
       return;
     }
 
     if (window.ContactsModule) {
-      window.ContactsModule.addContact(name, phone);
-      this.dom.contactNameInput.value = '';
-      this.dom.contactPhoneInput.value = '';
-      this.renderContacts();
-      this.showToast('✅ Contato de emergência salvo!');
+      try {
+        window.ContactsModule.addContact(name, phone, relation);
+        this.dom.contactNameInput.value = '';
+        if (this.dom.contactRelationInput) this.dom.contactRelationInput.value = '';
+        this.dom.contactPhoneInput.value = '';
+        this.renderContacts();
+        this.showToast('✅ Pessoa de confiança salva! Ela receberá seu SOS.');
+      } catch (error) {
+        this.showToast('⚠️ ' + (error && error.message ? error.message : 'Não foi possível salvar.'));
+      }
     }
   },
 
@@ -771,29 +1136,108 @@ const AppController = {
     if (this.isRecordingManualAudio) {
       window.AudioModule.stopRecording();
       this.isRecordingManualAudio = false;
-      if (this.dom.manualAudioText) this.dom.manualAudioText.textContent = 'Gravar Áudio de Evidência (15s)';
-      if (this.dom.manualAudioIcon) this.dom.manualAudioIcon.textContent = '🎙️';
+      this.resetManualAudioButton();
       this.showToast('Gravação de áudio finalizada.');
       return;
     }
 
+    if (window.AudioModule.isRecording) return;
+
+    this.audioCapture = { source: 'manual', eventId: null };
     const started = await window.AudioModule.startRecording(15000);
     if (started) {
       this.isRecordingManualAudio = true;
-      if (this.dom.manualAudioText) this.dom.manualAudioText.textContent = 'Gravando Evidência... (Clique para parar)';
+      if (this.dom.manualAudioText) this.dom.manualAudioText.textContent = 'Gravando… toque para parar';
       if (this.dom.manualAudioIcon) this.dom.manualAudioIcon.textContent = '🔴';
-      this.showToast('🎙️ Gravando áudio ambiental de segurança...');
+      if (this.dom.btnManualAudioRecord) this.dom.btnManualAudioRecord.classList.add('recording');
+      this.showToast('🎙️ Gravando áudio de prova (15 segundos)...');
     } else {
+      if (this.audioCapture && this.audioCapture.source === 'manual') this.audioCapture = null;
       this.showToast('⚠️ Permissão de microfone não concedida.');
     }
   },
 
-  onAudioRecorded(audioUrl, audioBlob) {
-    this.isRecordingManualAudio = false;
-    if (this.dom.manualAudioText) this.dom.manualAudioText.textContent = 'Gravar Áudio de Evidência (15s)';
+  resetManualAudioButton() {
+    if (this.dom.manualAudioText) this.dom.manualAudioText.textContent = 'Gravar áudio como prova (15s)';
     if (this.dom.manualAudioIcon) this.dom.manualAudioIcon.textContent = '🎙️';
-    this.attachAudioToLatestLog(audioBlob);
-    this.showToast('✅ Áudio de evidência salvo com segurança!');
+    if (this.dom.btnManualAudioRecord) this.dom.btnManualAudioRecord.classList.remove('recording');
+  },
+
+  async onAudioRecorded(audioUrl, audioBlob) {
+    this.isRecordingManualAudio = false;
+    this.resetManualAudioButton();
+
+    const ctx = this.audioCapture || { source: 'manual', eventId: null };
+    this.audioCapture = null;
+
+    const record = await this.saveAudioEvidence(audioBlob, ctx);
+
+    if (ctx.source === 'panic') {
+      if (record) {
+        this.attachEvidenceToLog(ctx.eventId, record.id);
+        this.showToast('✅ Áudio de 15s salvo em Documentos e provas.');
+      } else {
+        this.attachAudioToLatestLog(audioBlob, ctx.eventId);
+        this.showToast('✅ Áudio de evidência salvo no aparelho.');
+      }
+    } else if (record) {
+      this.showToast('✅ Áudio salvo em Documentos e provas.');
+    } else {
+      this.showToast('⚠️ Não foi possível salvar o áudio como prova.');
+    }
+
+    if (audioUrl) {
+      // A URL em memória não sobrevive ao recarregamento; a prova é recriada do Blob salvo.
+      setTimeout(() => {
+        try { URL.revokeObjectURL(audioUrl); } catch (e) { /* ignore */ }
+      }, 1000);
+    }
+  },
+
+  async saveAudioEvidence(blob, ctx) {
+    if (!blob || !window.EvidenceModule) return null;
+    return window.EvidenceModule.saveBlob(blob, {
+      kind: 'audio',
+      source: ctx.source || 'manual',
+      eventId: ctx.eventId || null,
+      durationMs: 15000
+    });
+  },
+
+  attachEvidenceToLog(eventId, evidenceId) {
+    const logs = this.getLogs();
+    const target = eventId ? logs.find((log) => log.id === eventId) : logs[0];
+    if (!target) return;
+
+    delete target.audioUrl;
+    target.evidenceId = evidenceId;
+    target.hasAudio = true;
+    try {
+      localStorage.setItem(STORAGE_KEY_LOGS, JSON.stringify(logs));
+      this.renderLogs();
+    } catch (e) {
+      console.error('[AppController] Erro ao vincular o áudio ao registro:', e);
+    }
+  },
+
+  // Remove a referência de uma prova apagada, para o histórico não apontar para o vazio.
+  forgetEvidence(evidenceId) {
+    const logs = this.getLogs();
+    let changed = false;
+    logs.forEach((log) => {
+      if (log.evidenceId === evidenceId) {
+        delete log.evidenceId;
+        log.hasAudio = false;
+        changed = true;
+      }
+    });
+    if (!changed) return;
+    try {
+      localStorage.setItem(STORAGE_KEY_LOGS, JSON.stringify(logs));
+      this.renderLogs();
+    } catch (e) {
+      console.error('[AppController] Erro ao atualizar o histórico:', e);
+    }
   },
 
   // ==========================================
@@ -825,9 +1269,10 @@ const AppController = {
     }
   },
 
-  async attachAudioToLatestLog(audioBlob) {
+  async attachAudioToLatestLog(audioBlob, eventId) {
     const logs = this.getLogs();
-    if (logs.length === 0) return;
+    const target = eventId ? logs.find((log) => log.id === eventId) : logs[0];
+    if (!target) return;
 
     let audioId = null;
     if (audioBlob && window.AudioStore) {
@@ -840,12 +1285,13 @@ const AppController = {
       }
     }
 
-    const latest = this.getLogs();
-    if (latest.length > 0) {
-      delete latest[0].audioUrl; // URL blob não sobrevive ao recarregamento
-      latest[0].audioId = audioId;
-      localStorage.setItem(STORAGE_KEY_LOGS, JSON.stringify(latest));
+    delete target.audioUrl;
+    target.audioId = audioId;
+    try {
+      localStorage.setItem(STORAGE_KEY_LOGS, JSON.stringify(logs));
       this.renderLogs();
+    } catch (e) {
+      console.error('[AppController] Erro ao salvar o áudio no registro:', e);
     }
   },
 
@@ -856,7 +1302,7 @@ const AppController = {
     this.dom.logsList.innerHTML = '';
 
     if (logs.length === 0) {
-      this.dom.logsList.innerHTML = '<div style="color:var(--text-muted); font-size:0.82rem;">Nenhum disparo registrado ainda.</div>';
+      this.dom.logsList.innerHTML = '<div class="empty-state small">Nenhum disparo registrado ainda.</div>';
       return;
     }
 
@@ -869,40 +1315,44 @@ const AppController = {
           <span>${this.escapeHtml(log.date)} às ${this.escapeHtml(log.time)}</span>
         </div>
         <div class="log-details">
-          ${log.loc && log.loc.success ? `📍 <a href="${this.escapeHtml(log.loc.mapsUrl)}" target="_blank" rel="noopener">Ver mapa de localização</a>` : '📍 Localização indisponível'}
+          ${log.loc && log.loc.success ? `📍 <a href="${this.escapeHtml(log.loc.mapsUrl)}" target="_blank" rel="noopener noreferrer">Ver mapa de localização</a>` : '📍 Localização indisponível'}
         </div>
-        ${log.audioId ? '<div class="log-audio" style="margin-top:6px;"></div>' : ''}
+        ${(log.evidenceId || log.audioId) ? '<div class="log-audio"></div>' : ''}
       `;
-      if (log.audioId) {
-        this.hydrateAudio(item.querySelector('.log-audio'), log.audioId);
+      if (log.evidenceId || log.audioId) {
+        this.hydrateLogAudio(item.querySelector('.log-audio'), log);
       }
       this.dom.logsList.appendChild(item);
     });
   },
 
-  async hydrateAudio(slot, audioId) {
+  async hydrateLogAudio(slot, log) {
     if (!slot) return;
-    if (!window.AudioStore) {
-      slot.innerHTML = '<span style="color:var(--text-muted); font-size:0.78rem;">🎙️ Áudio indisponível</span>';
+
+    let blob = null;
+    try {
+      if (log.evidenceId && window.EvidenceStore) {
+        blob = await window.EvidenceStore.getBlob(log.evidenceId);
+      } else if (log.audioId && window.AudioStore) {
+        blob = await window.AudioStore.get(log.audioId);
+      }
+    } catch (e) {
+      blob = null;
+    }
+
+    if (!blob) {
+      slot.innerHTML = '<span class="log-audio-empty">🎙️ Áudio indisponível</span>';
       return;
     }
-    try {
-      const blob = await window.AudioStore.get(audioId);
-      if (!blob) {
-        slot.innerHTML = '<span style="color:var(--text-muted); font-size:0.78rem;">🎙️ Áudio indisponível</span>';
-        return;
-      }
-      const url = URL.createObjectURL(blob);
-      const audio = document.createElement('audio');
-      audio.controls = true;
-      audio.src = url;
-      audio.style.cssText = 'width:100%; height:32px; border-radius:4px;';
-      audio.addEventListener('emptied', () => URL.revokeObjectURL(url), { once: true });
-      slot.innerHTML = '';
-      slot.appendChild(audio);
-    } catch (e) {
-      slot.innerHTML = '<span style="color:var(--text-muted); font-size:0.78rem;">🎙️ Áudio indisponível</span>';
-    }
+
+    const url = URL.createObjectURL(blob);
+    const audio = document.createElement('audio');
+    audio.controls = true;
+    audio.src = url;
+    audio.className = 'log-audio-player';
+    audio.addEventListener('emptied', () => URL.revokeObjectURL(url), { once: true });
+    slot.innerHTML = '';
+    slot.appendChild(audio);
   },
 
   // ==========================================

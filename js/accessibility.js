@@ -16,7 +16,6 @@ const AccessibilityModule = (function () {
   const VIBRATION_PATTERNS = {
     CLICK: [50],
     PANIC_START: [150, 50, 150],
-    COUNTDOWN_TICK: [100],
     ALERT_SENT: [300, 100, 300, 100, 500],
     CANCELLED: [200, 100, 200]
   };
@@ -85,7 +84,7 @@ const AccessibilityModule = (function () {
    */
   function triggerVisualFlash() {
     if (typeof document === 'undefined') return;
-    const overlay = document.getElementById('countdownOverlay');
+    const overlay = document.getElementById('flashOverlay');
     if (overlay) {
       overlay.classList.add('screen-flash');
       setTimeout(() => {
