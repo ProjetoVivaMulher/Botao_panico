@@ -13,14 +13,28 @@ const CamouflageModule = {
 
   /**
    * Código para sair do modo disfarce:
-   * usa o PIN definido no cadastro; se não houver, cai no padrão 7777.
+   * usa o PIN do cadastro (comparado por hash); sem PIN, cai no padrão 7777.
    */
-  getSecretCode() {
-    if (window.UserModule && typeof window.UserModule.getPin === 'function') {
-      const pin = window.UserModule.getPin();
-      if (pin) return String(pin);
+  getSecretCodeLength() {
+    if (window.UserModule && typeof window.UserModule.getPinLength === 'function') {
+      const length = window.UserModule.getPinLength();
+      if (length) return Number(length);
     }
-    return this.defaultSecretCode;
+    return this.defaultSecretCode.length;
+  },
+
+  async isSecretCode(candidate) {
+    const profile = window.UserModule && window.UserModule.getProfile
+      ? window.UserModule.getProfile()
+      : null;
+    const hasLocalPin = !!(profile && (profile.pinHash || profile.pin));
+
+    if (hasLocalPin && window.UserModule && typeof window.UserModule.verifyPin === 'function') {
+      return window.UserModule.verifyPin(candidate);
+    }
+    // Sem PIN local utilizável (ex.: cadastro feito em outro aparelho),
+    // mantém o código padrão para não bloquear a saída do disfarce.
+    return candidate === this.defaultSecretCode;
   },
 
   init() {
@@ -88,13 +102,15 @@ const CamouflageModule = {
     }
   },
 
-  handleInput(val) {
+  async handleInput(val) {
     if (!val) return;
 
-    // Buffer de segurança para destravamento secreto
+    // Buffer de segurança para destravamento secreto (PIN comparado por hash)
     if (val >= '0' && val <= '9') {
       this.inputHistory = (this.inputHistory + val).slice(-10); // Mantém apenas os últimos 10 dígitos
-      if (this.inputHistory.endsWith(this.getSecretCode())) {
+      const length = this.getSecretCodeLength();
+      const candidate = this.inputHistory.slice(-length);
+      if (candidate.length === length && await this.isSecretCode(candidate)) {
         this.deactivate();
         return;
       }

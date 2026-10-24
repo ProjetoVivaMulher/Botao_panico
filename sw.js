@@ -3,7 +3,7 @@
  * Service Worker para suporte a PWA e funcionamento offline resiliente
  */
 
-const CACHE_NAME = 'viva-mulher-v116';
+const CACHE_NAME = 'viva-mulher-v121';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -18,6 +18,8 @@ const ASSETS_TO_CACHE = [
   './js/camouflage.js',
   './js/audio.js',
   './js/audio-store.js',
+  './js/evidence-store.js',
+  './js/evidence.js',
   './js/app.js',
   './js/pwa-install.js',
   './manifest.json',
@@ -43,7 +45,6 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME) {
-            console.log('[SW] Removendo cache antigo:', key);
             return caches.delete(key);
           }
         })
