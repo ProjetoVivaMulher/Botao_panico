@@ -163,6 +163,16 @@ async function isLocked(id) {
 }
 
 /**
+ * Quanto falta (em ms) para o bloqueio temporário terminar.
+ * Retorna 0 quando a conta não está bloqueada.
+ */
+async function lockRemainingMs(id) {
+  const row = await findRowById(id);
+  if (!row || !row.locked_until) return 0;
+  return Math.max(0, new Date(row.locked_until).getTime() - Date.now());
+}
+
+/**
  * Registra uma tentativa falha de PIN/senha. Bloqueia temporariamente após
  * MAX_FAILED_ATTEMPTS. Retorna { locked, attempts, retryAfterMs }.
  */
@@ -228,6 +238,7 @@ module.exports = {
   updateConsent,
   remove,
   isLocked,
+  lockRemainingMs,
   registerFailedAttempt,
   resetFailedAttempts,
   isReconfirmationDue

@@ -59,6 +59,7 @@ const AppController = {
     if (!profile && !skipped) {
       setTimeout(() => {
         this.setAuthMode('register');
+        this.limparCampoPin();
         this.openModal('onboardingModal');
       }, 700);
     } else {
@@ -118,7 +119,19 @@ const AppController = {
       return;
     }
     this.setAuthMode('register');
+    this.limparCampoPin();
     this.openModal('onboardingModal');
+  },
+
+  /**
+   * Limpa o campo do PIN. O gerenciador de senhas do navegador costuma
+   * preencher sozinho um `input type="password"`, e aí o app enviava uma
+   * senha salva no lugar do PIN digitado — a conta levava "PIN incorreto"
+   * até bloquear por tentativas. Chamado ao abrir o modal e ao alternar
+   * entre "criar cadastro" e "entrar".
+   */
+  limparCampoPin() {
+    if (this.dom.regPin) this.dom.regPin.value = '';
   },
 
   /**
@@ -561,6 +574,7 @@ const AppController = {
     on(this.dom.registerForm, 'submit', (e) => this.handleRegister(e));
     on(this.dom.btnSwitchToLogin, 'click', () => {
       this.showFormError('regError', '');
+      this.limparCampoPin();
       this.setAuthMode(this.authMode === 'login' ? 'register' : 'login');
     });
     on(this.dom.regBirthDate, 'input', (e) => this.applyDateMask(e.target));
