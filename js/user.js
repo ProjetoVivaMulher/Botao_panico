@@ -112,6 +112,7 @@ const UserModule = (function () {
       id: user.id,
       fullName: user.fullName,
       phone: user.phone,
+      email: user.email || null,
       birthDate: user.birthDate,
       hasPin: !!user.hasPin,
       consentLgpd: !!user.consentLgpd,
@@ -212,8 +213,17 @@ const UserModule = (function () {
    * Cadastro único. Se o servidor estiver fora do ar, salva localmente como
    * pendente de sincronização (o pânico continua funcionando).
    */
-  async function register({ fullName, phone, birthDate, pin, consentLgpd, consentLocation, selfDeclaredWoman }) {
-    const payload = { fullName, phone, birthDate, pin: pin || null, consentLgpd, consentLocation, selfDeclaredWoman: !!selfDeclaredWoman };
+  async function register({ fullName, phone, email, birthDate, pin, consentLgpd, consentLocation, selfDeclaredWoman }) {
+    const payload = {
+      fullName,
+      phone,
+      email: email || null,
+      birthDate,
+      pin: pin || null,
+      consentLgpd,
+      consentLocation,
+      selfDeclaredWoman: !!selfDeclaredWoman
+    };
     const res = await Api.post('/api/users', payload);
 
     if (res.ok && res.data && res.data.user) {
@@ -225,11 +235,21 @@ const UserModule = (function () {
       return { ok: true, profile: write(profile) };
     }
 
-    // Telefone já cadastrado: tenta recuperar via login
-    if (res.status === 409 && res.data && res.data.userId) {
-      const login = await login(phone, pin);
-      if (login.ok) return login;
-      return { ok: false, status: 409, error: 'Este telefone já possui cadastro. Informe o PIN para entrar.' };
+    // Telefone/e-mail já cadastrado: tenta entrar com os mesmos dados do formulário.
+    // (A API não devolve mais o id no 409 — a recuperação é pelo login.)
+    if (res.status === 409) {
+      const recovered = await login(phone || email, pin, birthDate);
+      if (recovered.ok) return Object.assign({}, recovered, { recovered: true });
+
+      const code = (res.data && res.data.code) || 'PHONE_TAKEN';
+      return {
+        ok: false,
+        status: 409,
+        code,
+        error: code === 'EMAIL_TAKEN'
+          ? 'Este e-mail já tem cadastro. Use "Já tenho cadastro" e informe o PIN — ou a data de nascimento, se não criou PIN.'
+          : 'Este telefone já tem cadastro. Use "Já tenho cadastro" e informe o PIN — ou a data de nascimento, se não criou PIN.'
+      };
     }
 
     // Servidor indisponível: guarda local para não travar a usuária
@@ -241,6 +261,7 @@ const UserModule = (function () {
           id: 'local-' + Date.now(),
           fullName,
           phone,
+          email: email || null,
           birthDate,
           pinHash: pin ? await hashPin(pin) : null,
           pinLength: pin ? String(pin).length : null,
@@ -257,8 +278,16 @@ const UserModule = (function () {
     return { ok: false, status: res.status, error: (res.data && res.data.error) || 'Não foi possível cadastrar.' };
   }
 
-  async function login(phone, pin) {
-    const res = await Api.post('/api/users/login', { phone, pin: pin || null });
+  /**
+   * Entra no cadastro existente. O identificador pode ser o telefone ou o e-mail.
+   * A confirmação é o PIN (se a pessoa criou) ou a data de nascimento.
+   */
+  async function login(identifier, pin, birthDate) {
+    const res = await Api.post('/api/users/login', {
+      identifier: identifier || null,
+      pin: pin || null,
+      birthDate: birthDate || null
+    });
     if (res.ok && res.data && res.data.user) {
       const prev = read();
       const profile = fromServer(res.data.user);
@@ -267,7 +296,7 @@ const UserModule = (function () {
       profile.token = res.data.token || (prev && prev.token) || null;
       return { ok: true, profile: write(profile) };
     }
-    if (res.offline) return { ok: false, offline: true, error: 'Sem conexão.' };
+    if (res.offline) return { ok: false, offline: true, error: 'Sem conexão com o servidor. Tente novamente quando tiver internet.' };
     return { ok: false, status: res.status, error: (res.data && res.data.error) || 'Não foi possível entrar.' };
   }
 
@@ -309,12 +338,16 @@ const UserModule = (function () {
   // Tenta reenviar um cadastro que ficou pendente
   async function syncPending() {
     const p = read();
-    if (!p || !p.unsynced || String(p.id).startsWith('local-')) {
-      if (!p || !p.unsynced) return false;
-    }
+    if (!p || !p.unsynced) return false;
+
     const res = await register({
-      fullName: p.fullName, phone: p.phone, birthDate: p.birthDate,
-      pin: null, consentLgpd: p.consentLgpd, consentLocation: p.consentLocation,
+      fullName: p.fullName,
+      phone: p.phone,
+      email: p.email || null,
+      birthDate: p.birthDate,
+      pin: null,
+      consentLgpd: p.consentLgpd,
+      consentLocation: p.consentLocation,
       selfDeclaredWoman: p.selfDeclaredWoman
     });
     return !!res.ok && !res.offline;

@@ -65,7 +65,10 @@ app.use(sanitizeInput);
 app.use('/api/', rateLimiter({ windowMs: 60 * 1000, max: 120, message: 'Muitas requisições. Tente novamente em 1 minuto.' }));
 app.use('/api/alerts', rateLimiter({ windowMs: 60 * 1000, max: 20, message: 'Limite de criação de chamados atingido. Aguarde 1 minuto.' }));
 // Anti força-bruta no acesso (login/reconfirmação) — janela longa, poucas tentativas.
-app.use('/api/users/login', rateLimiter({ windowMs: 15 * 60 * 1000, max: 20, message: 'Muitas tentativas de acesso. Aguarde alguns minutos.' }));
+// O bloqueio por CONTA (5 erros) continua sendo a trava principal; este limite por
+// IP existe para freada de varredura. 40 (e não 20) porque operadoras usam CGNAT:
+// muitas usuárias podem chegar pelo mesmo IP e ninguém pode ficar sem entrar.
+app.use('/api/users/login', rateLimiter({ windowMs: 15 * 60 * 1000, max: 40, message: 'Muitas tentativas de acesso. Aguarde alguns minutos.' }));
 app.use('/api/users', rateLimiter({ windowMs: 60 * 1000, max: 40, message: 'Muitas requisições de cadastro. Aguarde um instante.' }));
 
 // 5. Servir arquivos de áudio gravados de forma segura

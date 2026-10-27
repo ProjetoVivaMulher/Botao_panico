@@ -10,6 +10,8 @@ const router = express.Router();
 const usersRepository = require('../repositories/usersRepository');
 const {
   normalizePhone,
+  normalizeEmail,
+  looksLikeEmail,
   normalizeBirthDate,
   isValidFullName,
   verifyPin
@@ -20,7 +22,7 @@ const { requireUserToken } = require('../middleware/auth');
 // POST /api/users - Cadastro único (público)
 router.post('/', async (req, res, next) => {
   try {
-    const { fullName, phone, birthDate, pin, consentLgpd, consentLocation, selfDeclaredWoman } = req.body || {};
+    const { fullName, phone, email, birthDate, pin, consentLgpd, consentLocation, selfDeclaredWoman } = req.body || {};
 
     if (!isValidFullName(fullName)) {
       return res.status(422).json({
@@ -35,6 +37,12 @@ router.post('/', async (req, res, next) => {
         success: false,
         error: 'Telefone inválido. Informe DDD + número (ex.: 21 99999-9999).'
       });
+    }
+
+    // E-mail é opcional; quando informado, é normalizado e único.
+    const normalizedEmail = normalizeEmail(email);
+    if (!normalizedEmail.ok) {
+      return res.status(422).json({ success: false, error: normalizedEmail.error });
     }
 
     const birth = normalizeBirthDate(birthDate);
@@ -74,13 +82,26 @@ router.post('/', async (req, res, next) => {
     if (existing) {
       return res.status(409).json({
         success: false,
-        error: 'Já existe um cadastro com este telefone.'
+        code: 'PHONE_TAKEN',
+        error: 'Já existe um cadastro com este telefone. Se for seu, use "Já tenho cadastro" para entrar.'
       });
+    }
+
+    if (normalizedEmail.email) {
+      const existingEmail = await usersRepository.findByEmail(normalizedEmail.email);
+      if (existingEmail) {
+        return res.status(409).json({
+          success: false,
+          code: 'EMAIL_TAKEN',
+          error: 'Já existe um cadastro com este e-mail. Se for seu, use "Já tenho cadastro" para entrar.'
+        });
+      }
     }
 
     const { user, token } = await usersRepository.create({
       fullName,
       phone: normalizedPhone,
+      email: normalizedEmail.email,
       birthDate: birth.iso,
       pin: pin ? String(pin) : null,
       consentLgpd: !!consentLgpd,
@@ -95,19 +116,44 @@ router.post('/', async (req, res, next) => {
   }
 });
 
-// POST /api/users/login - Recupera o cadastro (ex.: novo aparelho)
-// Aceita PIN (se definido) ou a data de nascimento como confirmação.
+// POST /api/users/login - Recupera o cadastro (ex.: novo aparelho, cadastro antigo)
+// Identificador: telefone OU e-mail. Confirmação: PIN (se definido) ou data de nascimento.
 router.post('/login', async (req, res, next) => {
   try {
-    const { phone, pin, birthDate } = req.body || {};
-    const normalizedPhone = normalizePhone(phone);
-    if (!normalizedPhone) {
-      return res.status(422).json({ success: false, error: 'Telefone inválido.' });
+    const { identifier, phone, email, pin, birthDate } = req.body || {};
+
+    // Aceita o campo novo (`identifier`) e mantém compatibilidade com `phone`/`email`.
+    const raw = String(identifier || phone || email || '').trim();
+    if (!raw) {
+      return res.status(422).json({
+        success: false,
+        error: 'Informe o telefone ou o e-mail cadastrado.'
+      });
     }
 
-    const user = await usersRepository.findByPhone(normalizedPhone);
+    let user = null;
+    if (looksLikeEmail(raw)) {
+      const normalizedEmail = normalizeEmail(raw);
+      if (!normalizedEmail.ok) {
+        return res.status(422).json({ success: false, error: normalizedEmail.error });
+      }
+      user = await usersRepository.findByEmail(normalizedEmail.email);
+    } else {
+      const normalizedPhone = normalizePhone(raw);
+      if (!normalizedPhone) {
+        return res.status(422).json({
+          success: false,
+          error: 'Telefone inválido. Informe DDD + número (ex.: 21 99999-9999).'
+        });
+      }
+      user = await usersRepository.findByPhone(normalizedPhone);
+    }
+
     if (!user) {
-      return res.status(404).json({ success: false, error: 'Cadastro não encontrado.' });
+      return res.status(404).json({
+        success: false,
+        error: 'Cadastro não encontrado para este telefone/e-mail.'
+      });
     }
 
     if (await usersRepository.isLocked(user.id)) {

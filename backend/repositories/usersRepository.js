@@ -16,6 +16,7 @@ function rowToUser(row) {
     id: row.id,
     fullName: row.full_name,
     phone: row.phone,
+    email: row.email || null,
     birthDate: row.birth_date,
     hasPin: !!row.pin_hash,
     consentLgpd: !!row.consent_lgpd,
@@ -44,6 +45,12 @@ async function findByPhone(phone) {
   return row ? rowToUser(row) : null;
 }
 
+async function findByEmail(email) {
+  if (!email) return null;
+  const row = await db.get('SELECT * FROM users WHERE email = ?', [String(email).toLowerCase()]);
+  return row ? rowToUser(row) : null;
+}
+
 async function findById(id) {
   const row = await db.get('SELECT * FROM users WHERE id = ?', [id]);
   return row ? rowToUser(row) : null;
@@ -58,13 +65,14 @@ async function findRowById(id) {
  * Gera um token de acesso opaco (guardado só no servidor) usado para
  * autorizar operações sensíveis. Retorna { user, token }.
  */
-async function create({ fullName, phone, birthDate, pin, consentLgpd, consentLocation, selfDeclaredWoman }) {
+async function create({ fullName, phone, email, birthDate, pin, consentLgpd, consentLocation, selfDeclaredWoman }) {
   const now = new Date().toISOString();
   const token = newToken();
   const user = {
     id: newId('user'),
     full_name: fullName.trim(),
     phone,
+    email: email || null,
     birth_date: birthDate,
     pin_hash: hashPin(pin),
     access_token: token,
@@ -81,10 +89,10 @@ async function create({ fullName, phone, birthDate, pin, consentLgpd, consentLoc
 
   await db.run(
     `INSERT INTO users
-       (id, full_name, phone, birth_date, pin_hash, access_token, consent_lgpd, consent_location, consent_at, self_declared_woman, self_declared_at, active, created_at, updated_at, last_confirmed_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, full_name, phone, email, birth_date, pin_hash, access_token, consent_lgpd, consent_location, consent_at, self_declared_woman, self_declared_at, active, created_at, updated_at, last_confirmed_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      user.id, user.full_name, user.phone, user.birth_date, user.pin_hash, user.access_token,
+      user.id, user.full_name, user.phone, user.email, user.birth_date, user.pin_hash, user.access_token,
       user.consent_lgpd, user.consent_location, user.consent_at,
       user.self_declared_woman, user.self_declared_at,
       user.active, user.created_at, user.updated_at, user.last_confirmed_at
@@ -212,6 +220,7 @@ module.exports = {
   MAX_FAILED_ATTEMPTS,
   create,
   findByPhone,
+  findByEmail,
   findById,
   findRowById,
   ensureAccessToken,

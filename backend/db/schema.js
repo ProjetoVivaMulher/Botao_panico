@@ -10,6 +10,7 @@ const STATEMENTS = [
     id TEXT PRIMARY KEY,
     full_name TEXT NOT NULL,
     phone TEXT NOT NULL UNIQUE,
+    email TEXT,
     birth_date TEXT NOT NULL,
     pin_hash TEXT,
     access_token TEXT,
@@ -67,7 +68,10 @@ const COLUMN_MIGRATIONS = [
   `ALTER TABLE users ADD COLUMN locked_until TEXT`,
   `ALTER TABLE users ADD COLUMN self_declared_woman INTEGER NOT NULL DEFAULT 0`,
   `ALTER TABLE users ADD COLUMN self_declared_at TEXT`,
-  `CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone)`
+  `ALTER TABLE users ADD COLUMN email TEXT`,
+  `CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone)`,
+  // E-mail é opcional: o índice único ignora quem não informou (NULL).
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL`
 ];
 
 async function ensureSchema() {
