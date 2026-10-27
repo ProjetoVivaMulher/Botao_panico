@@ -21,22 +21,40 @@ function securityHeaders(req, res, next) {
 }
 
 // 2. Rate Limiting em memória (Proteção contra spam / DoS) - Zero dependências externas
-const requestLog = new Map();
+//
+// Cada limitador tem o SEU PRÓPRIO contador (Map por IP).
+// Antes todos compartilhavam um único Map global, então qualquer requisição a
+// /api/* consumia a cota do login: um POST /api/users/login empilhava 3 marcas
+// (geral + /api/users + /api/users/login) e a usuária podia levar 429 no login
+// sem ter errado o PIN uma única vez.
+const limiterBuckets = [];
+
+function createBucket(windowMs) {
+  const bucket = { entries: new Map(), windowMs };
+  limiterBuckets.push(bucket);
+  return bucket;
+}
 
 function rateLimiter(options = {}) {
   const windowMs = options.windowMs || 60 * 1000; // Janela padrão: 1 minuto
   const maxRequests = options.max || 60; // Máximo de requisições na janela
   const message = options.message || 'Muitas requisições. Por favor, aguarde alguns instantes.';
+  const bucket = createBucket(windowMs);
 
   return (req, res, next) => {
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown-ip';
+    // `x-forwarded-for` pode vir com uma lista ("cliente, proxy1, proxy2").
+    const forwarded = req.headers['x-forwarded-for'];
+    const ip = (typeof forwarded === 'string' && forwarded.split(',')[0].trim()) ||
+      forwarded ||
+      req.socket.remoteAddress ||
+      'unknown-ip';
     const now = Date.now();
 
-    if (!requestLog.has(ip)) {
-      requestLog.set(ip, []);
+    if (!bucket.entries.has(ip)) {
+      bucket.entries.set(ip, []);
     }
 
-    const timestamps = requestLog.get(ip);
+    const timestamps = bucket.entries.get(ip);
     // Remove registros mais velhos que a janela
     while (timestamps.length > 0 && timestamps[0] <= now - windowMs) {
       timestamps.shift();
@@ -55,18 +73,24 @@ function rateLimiter(options = {}) {
   };
 }
 
-// Limpeza periódica do mapa de rate limiting a cada 10 minutos
-setInterval(() => {
+// Limpeza periódica dos contadores de rate limiting a cada 10 minutos.
+// Cada contador é podado pela própria janela (a do login é de 15 minutos).
+const cleanupTimer = setInterval(() => {
   const now = Date.now();
-  for (const [ip, timestamps] of requestLog.entries()) {
-    while (timestamps.length > 0 && timestamps[0] <= now - 60000) {
-      timestamps.shift();
-    }
-    if (timestamps.length === 0) {
-      requestLog.delete(ip);
+  for (const bucket of limiterBuckets) {
+    for (const [ip, timestamps] of bucket.entries.entries()) {
+      while (timestamps.length > 0 && timestamps[0] <= now - bucket.windowMs) {
+        timestamps.shift();
+      }
+      if (timestamps.length === 0) {
+        bucket.entries.delete(ip);
+      }
     }
   }
 }, 10 * 60 * 1000);
+
+// Não segura o processo vivo só por causa da limpeza (importante no serverless).
+if (typeof cleanupTimer.unref === 'function') cleanupTimer.unref();
 
 module.exports = {
   securityHeaders,

@@ -82,6 +82,29 @@ function normalizeBirthDate(raw) {
   return { ok: true, iso: `${y}-${pad(m)}-${pad(d)}` };
 }
 
+/**
+ * Normaliza e valida e-mail. O e-mail é OPCIONAL no cadastro:
+ * vazio devolve { ok: true, email: null }.
+ * Retorna { ok, email, error }.
+ */
+function normalizeEmail(raw) {
+  const value = String(raw == null ? '' : raw).trim().toLowerCase();
+  if (!value) return { ok: true, email: null };
+  if (value.length > 254) return { ok: false, error: 'E-mail muito longo.' };
+  // Formato simples: algo@dominio.tld (sem espaços, um único @)
+  if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/.test(value)) {
+    return { ok: false, error: 'E-mail inválido. Ex.: maria@email.com' };
+  }
+  return { ok: true, email: value };
+}
+
+/**
+ * Diz se o identificador de login é um e-mail (tem "@") ou um telefone.
+ */
+function looksLikeEmail(raw) {
+  return String(raw == null ? '' : raw).includes('@');
+}
+
 function isValidFullName(raw) {
   const name = String(raw == null ? '' : raw).trim();
   if (name.length < 3 || name.length > 120) return false;
@@ -129,6 +152,8 @@ function safeEqual(a, b) {
 module.exports = {
   onlyDigits,
   normalizePhone,
+  normalizeEmail,
+  looksLikeEmail,
   normalizeBirthDate,
   isValidFullName,
   hashPin,

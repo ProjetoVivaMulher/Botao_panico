@@ -8,6 +8,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db/database');
 const { requireFields } = require('../middleware/validate');
+const { requireUserOrAdmin } = require('../middleware/auth');
 const { normalizePhone, newId } = require('../services/validators');
 
 // Contato padrão da Central (PROVISÓRIO — ajuste em DEFAULT_SOCORRO_PHONE no .env)
@@ -31,12 +32,26 @@ function rowToContact(row) {
   };
 }
 
-// GET /api/contacts - Listar contatos (opcionalmente por usuária)
-router.get('/', async (req, res, next) => {
+/**
+ * GET /api/contacts - Lista as pessoas de confiança DA PRÓPRIA usuária.
+ *
+ * Antes esta rota era pública e, sem `user_id`, devolvia os contatos de TODAS
+ * as usuárias (nome e telefone de terceiros). Agora exige autenticação:
+ *  - `x-user-token`: devolve só os contatos de quem chamou;
+ *  - admin do painel interno (Basic): pode filtrar por `?user_id=` ou listar tudo.
+ */
+router.get('/', requireUserOrAdmin, async (req, res, next) => {
   try {
-    const { user_id } = req.query;
-    const rows = user_id
-      ? await db.all('SELECT * FROM contacts WHERE user_id = ? ORDER BY created_at ASC', [user_id])
+    const requested = req.query.user_id;
+
+    if (!req.isAdmin && requested && requested !== req.userId) {
+      return res.status(403).json({ success: false, error: 'Acesso não autorizado.' });
+    }
+
+    const targetUserId = req.isAdmin ? (requested || null) : req.userId;
+
+    const rows = targetUserId
+      ? await db.all('SELECT * FROM contacts WHERE user_id = ? ORDER BY created_at ASC', [targetUserId])
       : await db.all('SELECT * FROM contacts ORDER BY created_at ASC');
 
     if (rows.length === 0) {
@@ -48,10 +63,16 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-// POST /api/contacts - Cadastrar novo contato
-router.post('/', requireFields(['name', 'phone']), async (req, res, next) => {
+// POST /api/contacts - Cadastrar novo contato (só na própria conta)
+router.post('/', requireUserOrAdmin, requireFields(['name', 'phone']), async (req, res, next) => {
   try {
     const { name, phone, user_id } = req.body;
+
+    if (!req.isAdmin && user_id && user_id !== req.userId) {
+      return res.status(403).json({ success: false, error: 'Acesso não autorizado.' });
+    }
+    const ownerId = req.isAdmin ? (user_id || null) : req.userId;
+
     const normalized = normalizePhone(phone);
 
     if (!normalized) {
@@ -60,7 +81,7 @@ router.post('/', requireFields(['name', 'phone']), async (req, res, next) => {
 
     const contact = {
       id: newId('contact'),
-      user_id: user_id || null,
+      user_id: ownerId,
       name: String(name).trim().slice(0, 80),
       phone: normalized,
       is_default: 0,
@@ -82,12 +103,16 @@ router.post('/', requireFields(['name', 'phone']), async (req, res, next) => {
   }
 });
 
-// DELETE /api/contacts/:id - Remover contato
-router.delete('/:id', async (req, res, next) => {
+// DELETE /api/contacts/:id - Remover contato (só da própria conta)
+router.delete('/:id', requireUserOrAdmin, async (req, res, next) => {
   try {
     const { id } = req.params;
-    const existing = await db.get('SELECT id FROM contacts WHERE id = ?', [id]);
+    const existing = await db.get('SELECT id, user_id FROM contacts WHERE id = ?', [id]);
     if (!existing) {
+      return res.status(404).json({ success: false, error: 'Contato não encontrado.' });
+    }
+    if (!req.isAdmin && existing.user_id !== req.userId) {
+      // Não revela se o contato existe em outra conta
       return res.status(404).json({ success: false, error: 'Contato não encontrado.' });
     }
     await db.run('DELETE FROM contacts WHERE id = ?', [id]);

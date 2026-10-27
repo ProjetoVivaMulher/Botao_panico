@@ -48,22 +48,63 @@ function requireBasicAuth(req, res, next) {
     return res.status(401).json({ success: false, error: 'Autenticação necessária.' });
   }
 
-  const decoded = Buffer.from(encoded, 'base64').toString('utf8');
-  const separatorIndex = decoded.indexOf(':');
-  if (separatorIndex === -1) {
-    res.setHeader('WWW-Authenticate', 'Basic realm="Painel Interno Viva Mulher"');
-    return res.status(401).json({ success: false, error: 'Formato de credencial inválido.' });
-  }
-
-  const user = decoded.slice(0, separatorIndex);
-  const password = decoded.slice(separatorIndex + 1);
-
-  if (safeCompare(user, expectedUser) && safeCompare(password, expectedPassword)) {
+  if (hasAdminCredentials(req)) {
     return next();
   }
 
   res.setHeader('WWW-Authenticate', 'Basic realm="Painel Interno Viva Mulher"');
   return res.status(401).json({ success: false, error: 'Credenciais inválidas.' });
+}
+
+/**
+ * hasAdminCredentials — confere as credenciais do painel interno (HTTP Basic)
+ * sem responder nada. Usado por rotas que aceitam "admin OU a própria usuária".
+ */
+function hasAdminCredentials(req) {
+  const expectedUser = process.env.ADMIN_USER;
+  const expectedPassword = process.env.ADMIN_PASSWORD;
+  if (!expectedUser || !expectedPassword) return false;
+
+  const header = req.headers.authorization || '';
+  const [scheme, encoded] = header.split(' ');
+  if (scheme !== 'Basic' || !encoded) return false;
+
+  const decoded = Buffer.from(encoded, 'base64').toString('utf8');
+  const separatorIndex = decoded.indexOf(':');
+  if (separatorIndex === -1) return false;
+
+  const user = decoded.slice(0, separatorIndex);
+  const password = decoded.slice(separatorIndex + 1);
+
+  return safeCompare(user, expectedUser) && safeCompare(password, expectedPassword);
+}
+
+/**
+ * requireUserOrAdmin — aceita o painel interno (Basic) OU a própria usuária
+ * pelo header `x-user-token`. Deixa `req.isAdmin` ou `req.userId` para a rota.
+ */
+async function requireUserOrAdmin(req, res, next) {
+  try {
+    if (hasAdminCredentials(req)) {
+      req.isAdmin = true;
+      return next();
+    }
+
+    const token = req.headers['x-user-token'];
+    if (!token) {
+      return res.status(401).json({ success: false, error: 'Acesso não autorizado.' });
+    }
+
+    const row = await db.get('SELECT id, access_token FROM users WHERE access_token = ?', [String(token)]);
+    if (!row || !row.access_token || !safeCompare(String(token), row.access_token)) {
+      return res.status(401).json({ success: false, error: 'Acesso não autorizado.' });
+    }
+
+    req.userId = row.id;
+    return next();
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Falha ao validar acesso.' });
+  }
 }
 
 /**
@@ -94,4 +135,4 @@ async function requireUserToken(req, res, next) {
   }
 }
 
-module.exports = { requireBasicAuth, requireUserToken };
+module.exports = { requireBasicAuth, requireUserToken, requireUserOrAdmin, hasAdminCredentials };

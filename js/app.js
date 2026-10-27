@@ -16,6 +16,7 @@ const AppController = {
   isRecordingManualAudio: false,
   audioCapture: null,
   lastSosMessage: '',
+  authMode: 'register',
 
   init() {
     this.cacheDom();
@@ -56,7 +57,10 @@ const AppController = {
     this.updateProfileBanner();
 
     if (!profile && !skipped) {
-      setTimeout(() => this.openModal('onboardingModal'), 700);
+      setTimeout(() => {
+        this.setAuthMode('register');
+        this.openModal('onboardingModal');
+      }, 700);
     } else {
       this.initLocation();
     }
@@ -113,15 +117,63 @@ const AppController = {
       this.showReconfirm();
       return;
     }
+    this.setAuthMode('register');
     this.openModal('onboardingModal');
+  },
+
+  /**
+   * Alterna o modal entre "criar cadastro" e "entrar no cadastro existente".
+   * No modo login somem os campos que só fazem sentido no cadastro (nome e
+   * consentimentos, que já foram dados na primeira vez).
+   */
+  setAuthMode(mode) {
+    this.authMode = mode === 'login' ? 'login' : 'register';
+    const isLogin = this.authMode === 'login';
+
+    document.querySelectorAll('.reg-field-only').forEach((el) => {
+      el.hidden = isLogin;
+    });
+
+    if (this.dom.regFullName) this.dom.regFullName.required = !isLogin;
+    // A data de nascimento é validada no JS: no login ela é alternativa ao PIN.
+    if (this.dom.regBirthDate) this.dom.regBirthDate.required = false;
+
+    if (this.dom.regSubmit) this.dom.regSubmit.textContent = isLogin ? 'Entrar' : 'Salvar cadastro';
+    if (this.dom.btnSwitchToLogin) {
+      this.dom.btnSwitchToLogin.textContent = isLogin
+        ? 'Não tenho cadastro — criar agora'
+        : 'Já tenho cadastro — entrar';
+    }
+    if (this.dom.regPin) {
+      this.dom.regPin.placeholder = isLogin ? 'PIN (se você criou um)' : 'PIN de 4 a 6 dígitos';
+    }
+    if (this.dom.regPhone) {
+      this.dom.regPhone.placeholder = isLogin
+        ? 'Telefone cadastrado (21 99999-9999)'
+        : 'WhatsApp com DDD (21 99999-9999)';
+    }
+    if (this.dom.regEmail) {
+      this.dom.regEmail.placeholder = isLogin ? 'E-mail cadastrado (opcional)' : 'E-mail (opcional)';
+    }
+    if (this.dom.loginHint) this.dom.loginHint.hidden = !isLogin;
+    if (this.dom.onboardingTitle) {
+      this.dom.onboardingTitle.textContent = isLogin ? 'Entrar no seu cadastro' : 'Cadastro único';
+    }
+    if (this.dom.onboardingSub) {
+      this.dom.onboardingSub.textContent = isLogin
+        ? 'Já tem cadastro? Informe o telefone ou o e-mail e confirme com o PIN ou com a data de nascimento.'
+        : 'Faça o cadastro uma vez. Depois é só acionar o socorro em um toque. Você pode pular e usar o app mesmo assim.';
+    }
   },
 
   async handleRegister(e) {
     e.preventDefault();
     if (!this.dom.registerForm) return;
+    if (this.authMode === 'login') return this.handleLogin(e);
 
     const fullName = this.dom.regFullName.value.trim();
     const phone = this.dom.regPhone.value.trim();
+    const email = this.dom.regEmail ? this.dom.regEmail.value.trim() : '';
     const birthDate = this.dom.regBirthDate.value.trim();
     const pin = this.dom.regPin.value.trim();
     const consentLgpd = this.dom.regConsentLgpd.checked;
@@ -135,6 +187,9 @@ const AppController = {
     }
     if (!phone) {
       return this.showFormError('regError', 'Informe o telefone com DDD.');
+    }
+    if (email && !/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(email)) {
+      return this.showFormError('regError', 'E-mail inválido. Ex.: maria@email.com');
     }
     if (!birthDate) {
       return this.showFormError('regError', 'Informe a data de nascimento (DD/MM/AAAA).');
@@ -153,10 +208,12 @@ const AppController = {
     }
 
     this.setSubmitting('regSubmit', true, 'Salvando...');
-    const res = await UserModule.register({ fullName, phone, birthDate, pin, consentLgpd, consentLocation, selfDeclaredWoman });
+    const res = await UserModule.register({ fullName, phone, email, birthDate, pin, consentLgpd, consentLocation, selfDeclaredWoman });
     this.setSubmitting('regSubmit', false, 'Salvar cadastro');
 
     if (!res.ok) {
+      // Telefone/e-mail já cadastrado: leva a pessoa para o modo "entrar".
+      if (res.status === 409) this.setAuthMode('login');
       return this.showFormError('regError', res.error || 'Não foi possível salvar o cadastro.');
     }
 
@@ -172,9 +229,64 @@ const AppController = {
     this.ensureLocationPermission();
 
     this.updateProfileBanner();
+
+    if (res.recovered) {
+      this.showToast('✅ Bem-vinda de volta! Seu cadastro foi recuperado.');
+      return;
+    }
     this.showToast(res.offline
       ? '✅ Cadastro salvo no celular. Vamos sincronizar quando houver internet.'
       : '✅ Cadastro concluído. Obrigada!');
+  },
+
+  /**
+   * Entrar em um cadastro que já existe (novo aparelho, dados apagados,
+   * cadastro feito quando a API estava fora do ar). Identificador: telefone
+   * ou e-mail. Confirmação: PIN ou data de nascimento.
+   */
+  async handleLogin(e) {
+    e.preventDefault();
+    if (!this.dom.registerForm) return;
+
+    const phone = this.dom.regPhone ? this.dom.regPhone.value.trim() : '';
+    const email = this.dom.regEmail ? this.dom.regEmail.value.trim() : '';
+    const birthDate = this.dom.regBirthDate.value.trim();
+    const pin = this.dom.regPin.value.trim();
+    const identifier = email || phone;
+
+    this.showFormError('regError', '');
+
+    if (!identifier) {
+      return this.showFormError('regError', 'Informe o telefone ou o e-mail do seu cadastro.');
+    }
+    if (email && !phone && !/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(email)) {
+      return this.showFormError('regError', 'E-mail inválido. Ex.: maria@email.com');
+    }
+    if (pin && !/^\d{4,6}$/.test(pin)) {
+      return this.showFormError('regError', 'O PIN deve ter de 4 a 6 dígitos.');
+    }
+    if (!pin && !birthDate) {
+      return this.showFormError('regError', 'Informe o PIN ou a data de nascimento para confirmar.');
+    }
+
+    this.setSubmitting('regSubmit', true, 'Entrando...');
+    const res = await UserModule.login(identifier, pin, birthDate);
+    this.setSubmitting('regSubmit', false, this.authMode === 'login' ? 'Entrar' : 'Salvar cadastro');
+
+    if (!res.ok) {
+      return this.showFormError('regError', res.error || 'Não foi possível entrar.');
+    }
+
+    localStorage.setItem(STORAGE_KEY_SKIP_ONBOARDING, 'true');
+    this.closeModal('onboardingModal');
+
+    if (window.UserModule && UserModule.recordConsent) {
+      UserModule.recordConsent('lgpd', true);
+      UserModule.recordConsent('location', true);
+    }
+    this.ensureLocationPermission();
+    this.updateProfileBanner();
+    this.showToast('✅ Bem-vinda de volta! Seu cadastro foi recuperado.');
   },
 
   // Máscara DD/MM/AAAA: insere as barras automaticamente e mantém o cursor no lugar
@@ -394,11 +506,17 @@ const AppController = {
       registerForm: document.getElementById('registerForm'),
       regFullName: document.getElementById('regFullName'),
       regPhone: document.getElementById('regPhone'),
+      regEmail: document.getElementById('regEmail'),
       regBirthDate: document.getElementById('regBirthDate'),
       regPin: document.getElementById('regPin'),
       regSelfDeclared: document.getElementById('regSelfDeclared'),
       regConsentLgpd: document.getElementById('regConsentLgpd'),
       regConsentLocation: document.getElementById('regConsentLocation'),
+      regSubmit: document.getElementById('regSubmit'),
+      loginHint: document.getElementById('loginHint'),
+      onboardingTitle: document.getElementById('onboardingTitle'),
+      onboardingSub: document.getElementById('onboardingSub'),
+      btnSwitchToLogin: document.getElementById('btnSwitchToLogin'),
       btnSkipOnboarding: document.getElementById('btnSkipOnboarding'),
       linkLgpdInline: document.getElementById('linkLgpdInline'),
       // Reconfirmação
@@ -441,6 +559,10 @@ const AppController = {
     // Perfil / cadastro
     on(this.dom.profileBannerBtn, 'click', () => this.handleProfileBannerClick());
     on(this.dom.registerForm, 'submit', (e) => this.handleRegister(e));
+    on(this.dom.btnSwitchToLogin, 'click', () => {
+      this.showFormError('regError', '');
+      this.setAuthMode(this.authMode === 'login' ? 'register' : 'login');
+    });
     on(this.dom.regBirthDate, 'input', (e) => this.applyDateMask(e.target));
     on(this.dom.btnSkipOnboarding, 'click', () => {
       if (!this.allConsentsChecked()) {

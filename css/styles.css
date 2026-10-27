@@ -1580,6 +1580,13 @@ body {
   flex-shrink: 0;
 }
 
+/* Campos que só existem no modo "criar cadastro" (escondidos no modo "entrar").
+   Precisa de !important: .consent-line tem display:flex do autor, que venceria
+   a regra padrão do navegador para [hidden]. */
+.reg-field-only[hidden] {
+  display: none !important;
+}
+
 .form-error {
   display: none;
   background: var(--pink-soft);
