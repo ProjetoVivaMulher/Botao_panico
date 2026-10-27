@@ -1,0 +1,19 @@
+# Regras DESTE projeto (API). O Vercel usa o .vercelignore da pasta do projeto
+# (Root Directory = backend) e ignora o da raiz do repositório.
+#
+# IMPORTANTE: não exclua api/, app.js, routes/, db/ etc. — sem eles o deploy
+# sobe sem nenhuma função e TODAS as rotas respondem 404 (NOT_FOUND).
+
+node_modules
+.vercel
+
+# Segredos e dados locais nunca vão para o deploy
+.env
+.env.*
+!.env.example
+data
+uploads
+docs
+
+*.md
+!README.md
