@@ -156,10 +156,13 @@ router.post('/login', async (req, res, next) => {
       });
     }
 
-    if (await usersRepository.isLocked(user.id)) {
+    const bloqueioMs = await usersRepository.lockRemainingMs(user.id);
+    if (bloqueioMs > 0) {
+      const minutos = Math.max(1, Math.ceil(bloqueioMs / 60000));
       return res.status(429).json({
         success: false,
-        error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.'
+        error: `Muitas tentativas incorretas. Tente novamente em ${minutos} minuto${minutos > 1 ? 's' : ''}.`,
+        retryAfterMinutes: minutos
       });
     }
 
@@ -175,11 +178,25 @@ router.post('/login', async (req, res, next) => {
 
     if (!ok) {
       const attempt = await usersRepository.registerFailedAttempt(user.id);
+
+      // Diagnóstico seguro: NUNCA registra o PIN, só o formato recebido.
+      // Serve para distinguir "PIN digitado errado" de "campo preenchido
+      // automaticamente pelo gerenciador de senhas do navegador".
+      logger.warn('Tentativa de acesso falhou', {
+        userId: user.id,
+        via: row.pin_hash ? 'pin' : 'data',
+        pinRecebidoDigitos: pin ? String(pin).replace(/\D/g, '').length : 0,
+        pinRecebidoTamanho: pin ? String(pin).length : 0,
+        tentativas: attempt.attempts
+      });
+
+      const minutos = Math.max(1, Math.ceil((attempt.retryAfterMs || 0) / 60000));
       return res.status(attempt.locked ? 429 : 401).json({
         success: false,
         error: attempt.locked
-          ? 'Muitas tentativas incorretas. Conta bloqueada temporariamente.'
-          : (row.pin_hash ? 'PIN incorreto.' : 'Confirme com a data de nascimento.')
+          ? `Muitas tentativas incorretas. Tente novamente em ${minutos} minuto${minutos > 1 ? 's' : ''}.`
+          : (row.pin_hash ? 'PIN incorreto.' : 'Confirme com a data de nascimento.'),
+        retryAfterMinutes: attempt.locked ? minutos : undefined
       });
     }
 
@@ -209,10 +226,13 @@ router.post('/:id/confirm', requireUserToken, async (req, res, next) => {
     const user = await usersRepository.findById(req.userId);
     if (!user) return res.status(404).json({ success: false, error: 'Cadastro não encontrado.' });
 
-    if (await usersRepository.isLocked(user.id)) {
+    const bloqueioMs = await usersRepository.lockRemainingMs(user.id);
+    if (bloqueioMs > 0) {
+      const minutos = Math.max(1, Math.ceil(bloqueioMs / 60000));
       return res.status(429).json({
         success: false,
-        error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.'
+        error: `Muitas tentativas incorretas. Tente novamente em ${minutos} minuto${minutos > 1 ? 's' : ''}.`,
+        retryAfterMinutes: minutos
       });
     }
 
@@ -222,11 +242,13 @@ router.post('/:id/confirm', requireUserToken, async (req, res, next) => {
       const row = await usersRepository.findRowById(user.id);
       if (!verifyPin(pin, row.pin_hash)) {
         const attempt = await usersRepository.registerFailedAttempt(user.id);
+        const minutos = Math.max(1, Math.ceil((attempt.retryAfterMs || 0) / 60000));
         return res.status(attempt.locked ? 429 : 401).json({
           success: false,
           error: attempt.locked
-            ? 'Muitas tentativas incorretas. Conta bloqueada temporariamente.'
-            : 'PIN incorreto.'
+            ? `Muitas tentativas incorretas. Tente novamente em ${minutos} minuto${minutos > 1 ? 's' : ''}.`
+            : 'PIN incorreto.',
+          retryAfterMinutes: attempt.locked ? minutos : undefined
         });
       }
       await usersRepository.resetFailedAttempts(user.id);

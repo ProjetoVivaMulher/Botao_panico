@@ -7,9 +7,9 @@
   <meta name="description" content="Aplicativo de Botão de Pânico do Projeto Viva Mulher. Baixe e instale na sua tela inicial.">
   <meta name="theme-color" content="#fdf7f5">
   <meta name="color-scheme" content="light">
-  <link rel="manifest" href="manifest.json?v=123">
-  <link rel="icon" href="assets/icon-192.png?v=123">
-  <link rel="stylesheet" href="css/styles.css?v=123">
+  <link rel="manifest" href="manifest.json?v=124">
+  <link rel="icon" href="assets/icon-192.png?v=124">
+  <link rel="stylesheet" href="css/styles.css?v=124">
   <script>
     // Em produção, silencia o console para não expor caminhos, versões e detalhes internos.
     // Em desenvolvimento (localhost/rede local) o console continua funcionando normalmente.
@@ -30,7 +30,7 @@
 
     <header class="app-header">
       <div class="brand">
-        <img src="assets/logo.png?v=123" alt="Viva Mulher" class="brand-logo">
+        <img src="assets/logo.png?v=124" alt="Viva Mulher" class="brand-logo">
         <div class="brand-text">
           <h1 class="brand-title">Viva Mulher</h1>
           <span class="brand-subtitle">Botão de pânico</span>
@@ -306,9 +306,9 @@
         <input id="regPhone" class="input-field" type="tel" placeholder="WhatsApp com DDD (21 99999-9999)" autocomplete="tel" required>
         <input id="regEmail" class="input-field" type="email" placeholder="E-mail (opcional)" autocomplete="email">
         <input id="regBirthDate" class="input-field" type="text" placeholder="Data de nascimento (DD/MM/AAAA)" inputmode="numeric" autocomplete="bday" required>
-        <input id="regPin" class="input-field" type="password" placeholder="PIN de 4 a 6 dígitos" inputmode="numeric" autocomplete="new-password">
+        <input id="regPin" class="input-field" type="password" placeholder="PIN de 4 a 6 dígitos" inputmode="numeric" autocomplete="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true">
         <small class="field-hint reg-field-only">Usado para sair do disfarce e confirmar o cadastro.</small>
-        <small class="field-hint" id="loginHint" hidden>Confirme com o PIN <strong>ou</strong> com a data de nascimento.</small>
+        <small class="field-hint" id="loginHint" hidden>Se você criou um PIN, use ele. Sem PIN, use a data de nascimento.</small>
 
         <label class="consent-line reg-field-only">
           <input type="checkbox" id="regConsentLgpd">
@@ -505,20 +505,20 @@
 
   <!-- SCRIPTS -->
   <script>window.VIVA_API_BASE = 'https://botao-panico-viva-mulher.vercel.app';</script>
-  <script src="js/config.js?v=123"></script>
-  <script src="js/api.js?v=123"></script>
-  <script src="js/user.js?v=123"></script>
-  <script src="js/geolocation.js?v=123"></script>
-  <script src="js/accessibility.js?v=123"></script>
-  <script src="js/emergency-message.js?v=123"></script>
-  <script src="js/contacts.js?v=123"></script>
-  <script src="js/camouflage.js?v=123"></script>
-  <script src="js/audio.js?v=123"></script>
-  <script src="js/audio-store.js?v=123"></script>
-  <script src="js/evidence-store.js?v=123"></script>
-  <script src="js/evidence.js?v=123"></script>
-  <script src="js/pwa-install.js?v=123"></script>
-  <script src="js/app.js?v=123"></script>
+  <script src="js/config.js?v=124"></script>
+  <script src="js/api.js?v=124"></script>
+  <script src="js/user.js?v=124"></script>
+  <script src="js/geolocation.js?v=124"></script>
+  <script src="js/accessibility.js?v=124"></script>
+  <script src="js/emergency-message.js?v=124"></script>
+  <script src="js/contacts.js?v=124"></script>
+  <script src="js/camouflage.js?v=124"></script>
+  <script src="js/audio.js?v=124"></script>
+  <script src="js/audio-store.js?v=124"></script>
+  <script src="js/evidence-store.js?v=124"></script>
+  <script src="js/evidence.js?v=124"></script>
+  <script src="js/pwa-install.js?v=124"></script>
+  <script src="js/app.js?v=124"></script>
 
 </body>
 </html>
