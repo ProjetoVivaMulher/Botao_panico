@@ -30,6 +30,9 @@ const envOrigins = (process.env.ALLOWED_ORIGINS || '')
   .filter(Boolean);
 
 const allowedOrigins = [
+  // PWA em produção (conta math3us-f) — front atual
+  'https://viva-mulher-navy.vercel.app',
+  // PWA antigo (outra conta Vercel) — mantido para não quebrar quem já instalou
   'https://botao-panico-ten.vercel.app',
   'http://localhost:8080',
   'http://localhost:3000',
